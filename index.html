@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TSP branch-bound</title>
+    <script src="script.js"></script>
+    <style>
+        canvas {
+            border: 1pt solid black;
+        }
+
+        button {
+            margin: 4px;
+        }
+
+        .inline-block {
+            display: inline-block;
+            vertical-align: top;
+        }
+
+        table.tspbbvis-tableview {
+            border: 1pt solid black;
+            border-spacing: 0px;
+        }
+
+        table.tspbbvis-tableview td {
+            transition: background-color .2s;
+        }
+
+        table.tspbbvis-tableview tr:first-child > td, table.tspbbvis-tableview td:first-child {
+            font-weight: bold;
+        }
+
+        table.tspbbvis-tableview tr:not(:first-child) td {
+            border-top: 1pt solid black;
+        }
+
+        table.tspbbvis-tableview td:not(:first-child) {
+            border-left: 1pt solid black;
+        }
+
+        table.tspbbvis-tableview td.weight-data:empty:before {
+            content: '∞';
+        }
+
+        .tspbbvis-boundbarview {
+            height: 400px;
+            width: 60px;
+            overflow: hidden;
+            margin: 0px;
+        }
+
+        .tspbbvis-boundbarview > *, .tspbbvis-boundbarview-overlay > * {
+            width: 100%;
+            padding: 0px;
+            transition: height .5s linear;
+            overflow: hidden;
+            text-align: center;
+        }
+
+        .tspbbvis-boundbarview > .tspbbvis-boundbarview-overlay {
+            height: 100%;
+            width: 20%;
+            overflow: hidden;
+            position: relative;
+            bottom: 100%;
+        }
+    </style>
+</head>
+<body>
+<div>
+    <div class="inline-block">
+        <div>
+            <div id="deploy-bar" class="inline-block"></div>
+            <div id="deploy-graph" class="inline-block"></div>
+        </div>
+        <div id="deploy-info"></div>
+        <div id="deploy-controls"></div>
+    </div>
+    <div class="inline-block">
+        <div id="deploy-table"></div>
+        <div id="deploy-tree"></div>
+    </div>
+</div>
+</body>
+</html>
