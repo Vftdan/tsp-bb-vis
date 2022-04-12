@@ -734,6 +734,7 @@ module Presentation {
         export enum SolutionTreeNodeStyle {
             UNFOCUSED,
             FOCUSED,
+            SELECTABLE,
         }
 
         export enum SolutionTreeEdgeStyle {
@@ -1039,6 +1040,11 @@ module Presentation {
                     right: null,
                     isSolution: node.state.graph.isSolution,
                 };
+                if (Model.Types.solutionSearchState == Model.Types.SolutionSearchState.NEXT_NODE_SELECTION) {
+                    const index = Model.Types.solutionTree.unvisited.indexOf(<any> node);
+                    if (index >= 0 && index < Model.Types.solutionTree.lowestBoundUnvisitedCount())
+                        pNode.style = SolutionTreeNodeStyle.SELECTABLE;
+                }
                 if (node.parent && node.parent == Model.Types.solutionTreeNode) {
                     if (Model.Types.solutionSearchState == Model.Types.SolutionSearchState.BRANCH_LEFT && node == node.parent.rightChild)
                         return null;
@@ -1416,6 +1422,7 @@ module Presentation {
             // solution tree
             SOLUTION_TREE_UNFOCUSED,
             SOLUTION_TREE_FOCUSED,
+            SOLUTION_TREE_SELECTABLE,
             SOLUTION_TREE_NONSOLUTION_BG,
             SOLUTION_TREE_SOLUTION_BG,
         }
@@ -1443,6 +1450,7 @@ module Presentation {
             [ColorIndex.BOUND_BAR_MAX_BOUND_OVERLAY]: "#ce181e",
             [ColorIndex.SOLUTION_TREE_UNFOCUSED]: "#8b8b8b",
             [ColorIndex.SOLUTION_TREE_FOCUSED]: "#000000",
+            [ColorIndex.SOLUTION_TREE_SELECTABLE]: "#fe6861",
             [ColorIndex.SOLUTION_TREE_NONSOLUTION_BG]: "#ffffff",
             [ColorIndex.SOLUTION_TREE_SOLUTION_BG]: "#add58a",
         };
@@ -1931,17 +1939,20 @@ module Presentation {
                     const [ex, ey] = this.getNodeCenter(edge.child);
                     const tx = .2 * sx + .8 * ex;
                     const ty = .2 * sy + .8 * ey - 20;
-                    const color = colors[edge.style == PresentationModel.SolutionTreeEdgeStyle.UNFOCUSED
-                        ? ColorIndex.SOLUTION_TREE_UNFOCUSED
-                        : ColorIndex.SOLUTION_TREE_FOCUSED];
+                    const color = colors[{
+                        [PresentationModel.SolutionTreeEdgeStyle.UNFOCUSED]: ColorIndex.SOLUTION_TREE_UNFOCUSED,
+                        [PresentationModel.SolutionTreeEdgeStyle.FOCUSED]: ColorIndex.SOLUTION_TREE_FOCUSED,
+                    }[edge.style]];
                     this.drawingExtended.drawArrow(sx, sy + 30, ex, ey - 30, color);
                     this.drawing.drawText(tx, ty, 0, 1, color, edge.isTaken ? '\u2208' : '\u2209');
                 }
 
                 for (const node of pmodel.nodes) {
-                    const fg = colors[node.style == PresentationModel.SolutionTreeNodeStyle.UNFOCUSED
-                        ? ColorIndex.SOLUTION_TREE_UNFOCUSED
-                        : ColorIndex.SOLUTION_TREE_FOCUSED];
+                    const fg = colors[{
+                        [PresentationModel.SolutionTreeNodeStyle.UNFOCUSED]: ColorIndex.SOLUTION_TREE_UNFOCUSED,
+                        [PresentationModel.SolutionTreeNodeStyle.FOCUSED]: ColorIndex.SOLUTION_TREE_FOCUSED,
+                        [PresentationModel.SolutionTreeNodeStyle.SELECTABLE]: ColorIndex.SOLUTION_TREE_SELECTABLE,
+                    }[node.style]];
                     const bg = colors[node.isSolution
                         ? ColorIndex.SOLUTION_TREE_SOLUTION_BG
                         : ColorIndex.SOLUTION_TREE_NONSOLUTION_BG];
@@ -1961,6 +1972,10 @@ module Presentation {
                 const y = node.level * TreeView.LEVEL_HEIGHT;
                 return [x + 40, y + 40];
             }
+
+            public static unproject(x: number, y: number): number[] {
+                return [(x - 40) / TreeView.NODE_WIDTH, (y - 40) / TreeView.LEVEL_HEIGHT];
+            }
         }
     }
 
@@ -1971,6 +1986,7 @@ module Presentation {
             onContinueClick(e: MouseEvent | null);
             onChangeReductionDirection(e: Event | null, isIngoing: boolean);
             onChangeReductionStep(e: Event | null, backward: boolean);
+            onTreeViewClick(e: MouseEvent | null, x: number, y: number): void;
         }
 
         let currentController: IController;
@@ -1999,6 +2015,11 @@ module Presentation {
             onChangeReductionStep(e: Event | null, backward: boolean) {
                 if (currentController)
                     currentController.onChangeReductionStep(e, backward);
+            },
+
+            onTreeViewClick(e: MouseEvent | null, x: number, y: number) {
+                if (currentController)
+                    currentController.onTreeViewClick(e, x, y);
             },
         };
 
@@ -2037,6 +2058,9 @@ module Presentation {
             }
 
             onChangeReductionStep(e: Event | null, backward: boolean) {
+            }
+
+            onTreeViewClick(e: MouseEvent | null, x: number, y: number): void {
             }
         }
 
@@ -2090,6 +2114,9 @@ module Presentation {
                 }
                 PresentationModel.graph.update();
             }
+
+            onTreeViewClick(e: MouseEvent | null, x: number, y: number): void {
+            }
         }
 
         class SolutionSearchController implements IController {
@@ -2106,7 +2133,7 @@ module Presentation {
                             Model.Types.solutionSearchState = Model.Types.SolutionSearchState.ALL_SOLUTIONS_FOUND;
                             break;
                         }
-                        Model.Types.solutionTree.popUnvisited().focus();  // TODO give choice
+                        Model.Types.solutionTree.popUnvisited().focus();
                         Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION;
                         break;
                     case Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION:
@@ -2146,6 +2173,32 @@ module Presentation {
 
             onWeightInput(e: InputEvent | KeyboardEvent | FocusEvent | null, startVertex: number, endVertex: number, value: string) {
             }
+
+            onTreeViewClick(e: MouseEvent | null, x: number, y: number): void {
+                if (Model.Types.solutionSearchState != Model.Types.SolutionSearchState.NEXT_NODE_SELECTION)
+                    return;
+                const pmodel = PresentationModel.solutionTree;
+                if (y < -.5 || y > pmodel.maxDepth - .5)
+                    return;
+                const level = Math.max(0, Math.min(Math.round(y), pmodel.maxDepth - 1));
+                const levelNodes = pmodel.nodesByLevel[level];
+                for (let i = 0; i < levelNodes.length; ++i) {
+                    // TODO binary search
+                    const node = levelNodes[i];
+                    const dx = x - node.xOffset;
+                    if (Math.abs(dx) > 0.5)
+                        continue;
+                    const model = Model.Types.solutionTree;
+                    const nodeIndex = model.unvisited.indexOf(<any> node.model);
+                    if (nodeIndex < 0 || nodeIndex >= model.lowestBoundUnvisitedCount())
+                        continue;
+                    Model.Types.solutionTree.popUnvisited().focus();
+                    Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION;
+                    PresentationModel.graph.update();
+                    PresentationModel.solutionTree.update();
+                    break;
+                }
+            }
         }
 
         currentController = new GraphInputController();
@@ -2153,6 +2206,13 @@ module Presentation {
         export function graphViewMouseHandler(type: string, e: MouseEvent, x: number, y: number) {
             if (type == 'click')
                 controller.onGraphViewClick(e, x, y);
+        }
+
+        export function treeViewMouseHandler(type: string, e: MouseEvent, x: number, y: number) {
+            if (type == 'click') {
+                [x, y] = Views.TreeView.unproject(x, y);
+                controller.onTreeViewClick(e, x, y);
+            }
         }
     }
 }
@@ -2178,4 +2238,5 @@ addEventListener('load', function () {
     infoView.init(null, document.getElementById("deploy-info"));
     boundBarView.init(null, document.getElementById("deploy-bar"));
     treeView.init(Presentation.GraphicLibrary.canvasFactory, document.getElementById("deploy-tree"));
+    treeView.mouseHandler = Presentation.Controller.treeViewMouseHandler;
 }, false);
