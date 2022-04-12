@@ -617,6 +617,7 @@ var Presentation;
         (function (SolutionTreeNodeStyle) {
             SolutionTreeNodeStyle[SolutionTreeNodeStyle["UNFOCUSED"] = 0] = "UNFOCUSED";
             SolutionTreeNodeStyle[SolutionTreeNodeStyle["FOCUSED"] = 1] = "FOCUSED";
+            SolutionTreeNodeStyle[SolutionTreeNodeStyle["SELECTABLE"] = 2] = "SELECTABLE";
         })(SolutionTreeNodeStyle = PresentationModel.SolutionTreeNodeStyle || (PresentationModel.SolutionTreeNodeStyle = {}));
         var SolutionTreeEdgeStyle;
         (function (SolutionTreeEdgeStyle) {
@@ -892,6 +893,11 @@ var Presentation;
                     right: null,
                     isSolution: node.state.graph.isSolution
                 };
+                if (Model.Types.solutionSearchState == Model.Types.SolutionSearchState.NEXT_NODE_SELECTION) {
+                    var index = Model.Types.solutionTree.unvisited.indexOf(node);
+                    if (index >= 0 && index < Model.Types.solutionTree.lowestBoundUnvisitedCount())
+                        pNode.style = SolutionTreeNodeStyle.SELECTABLE;
+                }
                 if (node.parent && node.parent == Model.Types.solutionTreeNode) {
                     if (Model.Types.solutionSearchState == Model.Types.SolutionSearchState.BRANCH_LEFT && node == node.parent.rightChild)
                         return null;
@@ -1214,8 +1220,9 @@ var Presentation;
             // solution tree
             ColorIndex[ColorIndex["SOLUTION_TREE_UNFOCUSED"] = 20] = "SOLUTION_TREE_UNFOCUSED";
             ColorIndex[ColorIndex["SOLUTION_TREE_FOCUSED"] = 21] = "SOLUTION_TREE_FOCUSED";
-            ColorIndex[ColorIndex["SOLUTION_TREE_NONSOLUTION_BG"] = 22] = "SOLUTION_TREE_NONSOLUTION_BG";
-            ColorIndex[ColorIndex["SOLUTION_TREE_SOLUTION_BG"] = 23] = "SOLUTION_TREE_SOLUTION_BG";
+            ColorIndex[ColorIndex["SOLUTION_TREE_SELECTABLE"] = 22] = "SOLUTION_TREE_SELECTABLE";
+            ColorIndex[ColorIndex["SOLUTION_TREE_NONSOLUTION_BG"] = 23] = "SOLUTION_TREE_NONSOLUTION_BG";
+            ColorIndex[ColorIndex["SOLUTION_TREE_SOLUTION_BG"] = 24] = "SOLUTION_TREE_SOLUTION_BG";
         })(ColorIndex = Views.ColorIndex || (Views.ColorIndex = {}));
         Views.colors = (_a = {},
             _a[ColorIndex.GRAPH_VERTEX_UNFOCUSED] = "#8b8b8b",
@@ -1240,6 +1247,7 @@ var Presentation;
             _a[ColorIndex.BOUND_BAR_MAX_BOUND_OVERLAY] = "#ce181e",
             _a[ColorIndex.SOLUTION_TREE_UNFOCUSED] = "#8b8b8b",
             _a[ColorIndex.SOLUTION_TREE_FOCUSED] = "#000000",
+            _a[ColorIndex.SOLUTION_TREE_SELECTABLE] = "#fe6861",
             _a[ColorIndex.SOLUTION_TREE_NONSOLUTION_BG] = "#ffffff",
             _a[ColorIndex.SOLUTION_TREE_SOLUTION_BG] = "#add58a",
             _a);
@@ -1710,33 +1718,37 @@ var Presentation;
                 return _super !== null && _super.apply(this, arguments) || this;
             }
             TreeView.prototype.render = function () {
+                var _a, _b;
                 var pmodel = PresentationModel.solutionTree;
                 var width = pmodel.maxWidth * TreeView.NODE_WIDTH;
                 var height = pmodel.maxDepth * TreeView.LEVEL_HEIGHT;
                 if (this.drawing.width < width || this.drawing.height < height)
                     this.drawing.resize(Math.max(width, this.drawing.width), Math.max(height, this.drawing.height));
                 this.drawing.clear();
-                for (var _i = 0, _a = pmodel.edges; _i < _a.length; _i++) {
-                    var edge = _a[_i];
-                    var _b = this.getNodeCenter(edge.parent), sx = _b[0], sy = _b[1];
-                    var _c = this.getNodeCenter(edge.child), ex = _c[0], ey = _c[1];
+                for (var _i = 0, _c = pmodel.edges; _i < _c.length; _i++) {
+                    var edge = _c[_i];
+                    var _d = this.getNodeCenter(edge.parent), sx = _d[0], sy = _d[1];
+                    var _e = this.getNodeCenter(edge.child), ex = _e[0], ey = _e[1];
                     var tx = .2 * sx + .8 * ex;
                     var ty = .2 * sy + .8 * ey - 20;
-                    var color = Views.colors[edge.style == PresentationModel.SolutionTreeEdgeStyle.UNFOCUSED
-                        ? ColorIndex.SOLUTION_TREE_UNFOCUSED
-                        : ColorIndex.SOLUTION_TREE_FOCUSED];
+                    var color = Views.colors[(_a = {},
+                        _a[PresentationModel.SolutionTreeEdgeStyle.UNFOCUSED] = ColorIndex.SOLUTION_TREE_UNFOCUSED,
+                        _a[PresentationModel.SolutionTreeEdgeStyle.FOCUSED] = ColorIndex.SOLUTION_TREE_FOCUSED,
+                        _a)[edge.style]];
                     this.drawingExtended.drawArrow(sx, sy + 30, ex, ey - 30, color);
                     this.drawing.drawText(tx, ty, 0, 1, color, edge.isTaken ? '\u2208' : '\u2209');
                 }
-                for (var _d = 0, _e = pmodel.nodes; _d < _e.length; _d++) {
-                    var node = _e[_d];
-                    var fg = Views.colors[node.style == PresentationModel.SolutionTreeNodeStyle.UNFOCUSED
-                        ? ColorIndex.SOLUTION_TREE_UNFOCUSED
-                        : ColorIndex.SOLUTION_TREE_FOCUSED];
+                for (var _f = 0, _g = pmodel.nodes; _f < _g.length; _f++) {
+                    var node = _g[_f];
+                    var fg = Views.colors[(_b = {},
+                        _b[PresentationModel.SolutionTreeNodeStyle.UNFOCUSED] = ColorIndex.SOLUTION_TREE_UNFOCUSED,
+                        _b[PresentationModel.SolutionTreeNodeStyle.FOCUSED] = ColorIndex.SOLUTION_TREE_FOCUSED,
+                        _b[PresentationModel.SolutionTreeNodeStyle.SELECTABLE] = ColorIndex.SOLUTION_TREE_SELECTABLE,
+                        _b)[node.style]];
                     var bg = Views.colors[node.isSolution
                         ? ColorIndex.SOLUTION_TREE_SOLUTION_BG
                         : ColorIndex.SOLUTION_TREE_NONSOLUTION_BG];
-                    var _f = this.getNodeCenter(node), x = _f[0], y = _f[1];
+                    var _h = this.getNodeCenter(node), x = _h[0], y = _h[1];
                     this.drawing.drawCircle(x, y, 30, bg, fg, 'b = ' + numberToString(node.bound));
                     if (node.separatingArc)
                         this.drawingExtended.drawDiamond(x, y + 30, 30, 15, bg, fg, Model.Types.originalGraph.vertices[node.separatingArc[0]].name + '; ' + Model.Types.originalGraph.vertices[node.separatingArc[1]].name);
@@ -1747,6 +1759,9 @@ var Presentation;
                 var x = node.xOffset * TreeView.NODE_WIDTH;
                 var y = node.level * TreeView.LEVEL_HEIGHT;
                 return [x + 40, y + 40];
+            };
+            TreeView.unproject = function (x, y) {
+                return [(x - 40) / TreeView.NODE_WIDTH, (y - 40) / TreeView.LEVEL_HEIGHT];
             };
             TreeView.LEVEL_HEIGHT = 80;
             TreeView.NODE_WIDTH = 80;
@@ -1777,6 +1792,10 @@ var Presentation;
             onChangeReductionStep: function (e, backward) {
                 if (currentController)
                     currentController.onChangeReductionStep(e, backward);
+            },
+            onTreeViewClick: function (e, x, y) {
+                if (currentController)
+                    currentController.onTreeViewClick(e, x, y);
             }
         };
         var GraphInputController = /** @class */ (function () {
@@ -1812,6 +1831,8 @@ var Presentation;
             GraphInputController.prototype.onChangeReductionDirection = function (e, isIngoing) {
             };
             GraphInputController.prototype.onChangeReductionStep = function (e, backward) {
+            };
+            GraphInputController.prototype.onTreeViewClick = function (e, x, y) {
             };
             return GraphInputController;
         }());
@@ -1864,6 +1885,8 @@ var Presentation;
                 }
                 PresentationModel.graph.update();
             };
+            InitialReductionController.prototype.onTreeViewClick = function (e, x, y) {
+            };
             return InitialReductionController;
         }());
         var SolutionSearchController = /** @class */ (function () {
@@ -1880,7 +1903,7 @@ var Presentation;
                             Model.Types.solutionSearchState = Model.Types.SolutionSearchState.ALL_SOLUTIONS_FOUND;
                             break;
                         }
-                        Model.Types.solutionTree.popUnvisited().focus(); // TODO give choice
+                        Model.Types.solutionTree.popUnvisited().focus();
                         Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION;
                         break;
                     case Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION:
@@ -1917,6 +1940,31 @@ var Presentation;
             };
             SolutionSearchController.prototype.onWeightInput = function (e, startVertex, endVertex, value) {
             };
+            SolutionSearchController.prototype.onTreeViewClick = function (e, x, y) {
+                if (Model.Types.solutionSearchState != Model.Types.SolutionSearchState.NEXT_NODE_SELECTION)
+                    return;
+                var pmodel = PresentationModel.solutionTree;
+                if (y < -.5 || y > pmodel.maxDepth - .5)
+                    return;
+                var level = Math.max(0, Math.min(Math.round(y), pmodel.maxDepth - 1));
+                var levelNodes = pmodel.nodesByLevel[level];
+                for (var i = 0; i < levelNodes.length; ++i) {
+                    // TODO binary search
+                    var node = levelNodes[i];
+                    var dx = x - node.xOffset;
+                    if (Math.abs(dx) > 0.5)
+                        continue;
+                    var model = Model.Types.solutionTree;
+                    var nodeIndex = model.unvisited.indexOf(node.model);
+                    if (nodeIndex < 0 || nodeIndex >= model.lowestBoundUnvisitedCount())
+                        continue;
+                    Model.Types.solutionTree.popUnvisited().focus();
+                    Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION;
+                    PresentationModel.graph.update();
+                    PresentationModel.solutionTree.update();
+                    break;
+                }
+            };
             return SolutionSearchController;
         }());
         currentController = new GraphInputController();
@@ -1925,6 +1973,14 @@ var Presentation;
                 Controller.controller.onGraphViewClick(e, x, y);
         }
         Controller.graphViewMouseHandler = graphViewMouseHandler;
+        function treeViewMouseHandler(type, e, x, y) {
+            var _a;
+            if (type == 'click') {
+                _a = Views.TreeView.unproject(x, y), x = _a[0], y = _a[1];
+                Controller.controller.onTreeViewClick(e, x, y);
+            }
+        }
+        Controller.treeViewMouseHandler = treeViewMouseHandler;
     })(Controller = Presentation.Controller || (Presentation.Controller = {}));
 })(Presentation || (Presentation = {}));
 addEventListener('load', function () {
@@ -1948,4 +2004,5 @@ addEventListener('load', function () {
     infoView.init(null, document.getElementById("deploy-info"));
     boundBarView.init(null, document.getElementById("deploy-bar"));
     treeView.init(Presentation.GraphicLibrary.canvasFactory, document.getElementById("deploy-tree"));
+    treeView.mouseHandler = Presentation.Controller.treeViewMouseHandler;
 }, false);
