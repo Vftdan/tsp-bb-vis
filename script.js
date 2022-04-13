@@ -607,6 +607,7 @@ var Presentation;
         (function (GraphArcStyle) {
             GraphArcStyle[GraphArcStyle["UNFOCUSED"] = 0] = "UNFOCUSED";
             GraphArcStyle[GraphArcStyle["FOCUSED"] = 1] = "FOCUSED";
+            GraphArcStyle[GraphArcStyle["SELECTABLE"] = 2] = "SELECTABLE";
         })(GraphArcStyle = PresentationModel.GraphArcStyle || (PresentationModel.GraphArcStyle = {}));
         var GraphEdgeStyle;
         (function (GraphEdgeStyle) {
@@ -761,6 +762,10 @@ var Presentation;
                     };
                     if (this.isReductionShown && PresentationModel.focusedVertex != reductionVertexNumber)
                         pa.style = GraphArcStyle.UNFOCUSED;
+                    if (Model.Types.visualisationState == Model.Types.VisualisationState.SOLUTION_SEARCH && Model.Types.solutionSearchState == Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION) {
+                        if (Model.Types.solutionTreeNode.state.weightReduction.maxBoundChangeZeroArcs.indexOf(modelIndex) >= 0)
+                            pa.style = GraphArcStyle.SELECTABLE;
+                    }
                     if (PresentationModel.focusedVertex == reductionVertexNumber && this.isReductionShown) {
                         var weightReduction = Model.Types.solutionTreeNode.state.weightReduction;
                         if (PresentationModel.reductionIsIngoing && weightReduction.columnsSorted || !PresentationModel.reductionIsIngoing && weightReduction.rowsSorted) {
@@ -1207,22 +1212,23 @@ var Presentation;
             // table cell
             ColorIndex[ColorIndex["TABLE_CELL_FOCUSED"] = 9] = "TABLE_CELL_FOCUSED";
             ColorIndex[ColorIndex["TABLE_CELL_UNFOCUSED"] = 10] = "TABLE_CELL_UNFOCUSED";
-            ColorIndex[ColorIndex["TABLE_CELL_MIN"] = 11] = "TABLE_CELL_MIN";
-            ColorIndex[ColorIndex["TABLE_CELL_INFINITE"] = 12] = "TABLE_CELL_INFINITE";
-            ColorIndex[ColorIndex["TABLE_CELL_TAKEN"] = 13] = "TABLE_CELL_TAKEN";
+            ColorIndex[ColorIndex["TABLE_CELL_SELECTABLE"] = 11] = "TABLE_CELL_SELECTABLE";
+            ColorIndex[ColorIndex["TABLE_CELL_MIN"] = 12] = "TABLE_CELL_MIN";
+            ColorIndex[ColorIndex["TABLE_CELL_INFINITE"] = 13] = "TABLE_CELL_INFINITE";
+            ColorIndex[ColorIndex["TABLE_CELL_TAKEN"] = 14] = "TABLE_CELL_TAKEN";
             // bound bar
-            ColorIndex[ColorIndex["BOUND_BAR_FREE"] = 14] = "BOUND_BAR_FREE";
-            ColorIndex[ColorIndex["BOUND_BAR_DELTA"] = 15] = "BOUND_BAR_DELTA";
-            ColorIndex[ColorIndex["BOUND_BAR_DELTA_FG"] = 16] = "BOUND_BAR_DELTA_FG";
-            ColorIndex[ColorIndex["BOUND_BAR_OCCUPIED"] = 17] = "BOUND_BAR_OCCUPIED";
-            ColorIndex[ColorIndex["BOUND_BAR_OCCUPIED_FG"] = 18] = "BOUND_BAR_OCCUPIED_FG";
-            ColorIndex[ColorIndex["BOUND_BAR_MAX_BOUND_OVERLAY"] = 19] = "BOUND_BAR_MAX_BOUND_OVERLAY";
+            ColorIndex[ColorIndex["BOUND_BAR_FREE"] = 15] = "BOUND_BAR_FREE";
+            ColorIndex[ColorIndex["BOUND_BAR_DELTA"] = 16] = "BOUND_BAR_DELTA";
+            ColorIndex[ColorIndex["BOUND_BAR_DELTA_FG"] = 17] = "BOUND_BAR_DELTA_FG";
+            ColorIndex[ColorIndex["BOUND_BAR_OCCUPIED"] = 18] = "BOUND_BAR_OCCUPIED";
+            ColorIndex[ColorIndex["BOUND_BAR_OCCUPIED_FG"] = 19] = "BOUND_BAR_OCCUPIED_FG";
+            ColorIndex[ColorIndex["BOUND_BAR_MAX_BOUND_OVERLAY"] = 20] = "BOUND_BAR_MAX_BOUND_OVERLAY";
             // solution tree
-            ColorIndex[ColorIndex["SOLUTION_TREE_UNFOCUSED"] = 20] = "SOLUTION_TREE_UNFOCUSED";
-            ColorIndex[ColorIndex["SOLUTION_TREE_FOCUSED"] = 21] = "SOLUTION_TREE_FOCUSED";
-            ColorIndex[ColorIndex["SOLUTION_TREE_SELECTABLE"] = 22] = "SOLUTION_TREE_SELECTABLE";
-            ColorIndex[ColorIndex["SOLUTION_TREE_NONSOLUTION_BG"] = 23] = "SOLUTION_TREE_NONSOLUTION_BG";
-            ColorIndex[ColorIndex["SOLUTION_TREE_SOLUTION_BG"] = 24] = "SOLUTION_TREE_SOLUTION_BG";
+            ColorIndex[ColorIndex["SOLUTION_TREE_UNFOCUSED"] = 21] = "SOLUTION_TREE_UNFOCUSED";
+            ColorIndex[ColorIndex["SOLUTION_TREE_FOCUSED"] = 22] = "SOLUTION_TREE_FOCUSED";
+            ColorIndex[ColorIndex["SOLUTION_TREE_SELECTABLE"] = 23] = "SOLUTION_TREE_SELECTABLE";
+            ColorIndex[ColorIndex["SOLUTION_TREE_NONSOLUTION_BG"] = 24] = "SOLUTION_TREE_NONSOLUTION_BG";
+            ColorIndex[ColorIndex["SOLUTION_TREE_SOLUTION_BG"] = 25] = "SOLUTION_TREE_SOLUTION_BG";
         })(ColorIndex = Views.ColorIndex || (Views.ColorIndex = {}));
         Views.colors = (_a = {},
             _a[ColorIndex.GRAPH_VERTEX_UNFOCUSED] = "#8b8b8b",
@@ -1236,6 +1242,7 @@ var Presentation;
             _a[ColorIndex.GRAPH_ARC_WEIGHT_NONMIN_BG] = "#c0befe",
             _a[ColorIndex.TABLE_CELL_FOCUSED] = "#ffffff",
             _a[ColorIndex.TABLE_CELL_UNFOCUSED] = "#cccccc",
+            _a[ColorIndex.TABLE_CELL_SELECTABLE] = "#d8a77d",
             _a[ColorIndex.TABLE_CELL_MIN] = "#7da7d8",
             _a[ColorIndex.TABLE_CELL_INFINITE] = "#333333",
             _a[ColorIndex.TABLE_CELL_TAKEN] = "#000000",
@@ -1277,6 +1284,7 @@ var Presentation;
                 this._dirty = false;
             };
             GraphView.prototype.drawArcWeight = function (a) {
+                var _a;
                 this.drawing.pushTransformation();
                 try {
                     this.drawing.transformTranslate(a.x, a.y);
@@ -1288,7 +1296,11 @@ var Presentation;
                     var p2 = { x: 0, y: -width };
                     var p3 = { x: length_1, y: 0 };
                     var p4 = { x: 0, y: width }; // for taken
-                    var fg = Views.colors[a.style == GraphArcStyle.FOCUSED ? ColorIndex.GRAPH_ARC_WEIGHT_FOCUSED : ColorIndex.GRAPH_ARC_WEIGHT_UNFOCUSED];
+                    var fg = Views.colors[(_a = {},
+                        _a[GraphArcStyle.UNFOCUSED] = ColorIndex.GRAPH_ARC_WEIGHT_UNFOCUSED,
+                        _a[GraphArcStyle.FOCUSED] = ColorIndex.GRAPH_ARC_WEIGHT_FOCUSED,
+                        _a[GraphArcStyle.SELECTABLE] = ColorIndex.GRAPH_ARC_WEIGHT_FOCUSED,
+                        _a)[a.style]];
                     var bg = a.isZero ? fg : (a.isMin ? Views.colors[ColorIndex.GRAPH_ARC_WEIGHT_MIN_BG] : null);
                     if (a.fillPart) {
                         var partP1 = { x: length_1 * (1 - a.fillPart), y: 0 };
@@ -1379,6 +1391,9 @@ var Presentation;
                                 weight = pArc.weight;
                                 if (pArc.style == PresentationModel.GraphArcStyle.UNFOCUSED) {
                                     cell.style.backgroundColor = Views.colors[ColorIndex.TABLE_CELL_UNFOCUSED];
+                                }
+                                else if (pArc.style == PresentationModel.GraphArcStyle.SELECTABLE) {
+                                    cell.style.backgroundColor = Views.colors[ColorIndex.TABLE_CELL_SELECTABLE];
                                 }
                                 else if (pArc.isMin) {
                                     cell.style.backgroundColor = Views.colors[ColorIndex.TABLE_CELL_MIN];
@@ -1494,12 +1509,17 @@ var Presentation;
                 td.className = 'weight-data';
                 td.referencedEdge = [startVertex, endVertex];
                 var view = this;
-                var handler = function (e) {
+                var inputHandler = function (e) {
                     if (view.inputHandler && td.referencedEdge.length == 2)
                         view.inputHandler(e, td.referencedEdge[0], td.referencedEdge[1], td.innerText);
                 };
-                td.addEventListener('input', handler, false);
-                td.addEventListener('blur', handler, false);
+                var clickHandler = function (e) {
+                    if (view.mouseHandler && td.referencedEdge.length == 2)
+                        view.mouseHandler('click', e, td.referencedEdge[1], td.referencedEdge[0]);
+                };
+                td.addEventListener('input', inputHandler, false);
+                td.addEventListener('blur', inputHandler, false);
+                td.addEventListener('click', clickHandler, false);
                 return td;
             };
             return TableView;
@@ -1781,6 +1801,10 @@ var Presentation;
                 if (currentController)
                     currentController.onWeightInput(e, startVertex, endVertex, value);
             },
+            onWeightClick: function (e, startVertex, endVertex) {
+                if (currentController)
+                    currentController.onWeightClick(e, startVertex, endVertex);
+            },
             onContinueClick: function (e) {
                 if (currentController)
                     currentController.onContinueClick(e);
@@ -1812,6 +1836,8 @@ var Presentation;
                 else
                     Model.Types.originalGraph.setArc(startVertex, endVertex, numericValue);
                 PresentationModel.graph.update();
+            };
+            GraphInputController.prototype.onWeightClick = function (e, startVertex, endVertex) {
             };
             GraphInputController.prototype.onContinueClick = function (e) {
                 if (Model.Types.currentGraph.vertexCount <= 2) {
@@ -1849,6 +1875,11 @@ var Presentation;
             InitialReductionController.prototype.onGraphViewClick = function (e, x, y) {
             };
             InitialReductionController.prototype.onWeightInput = function (e, startVertex, endVertex, value) {
+            };
+            InitialReductionController.prototype.onWeightClick = function (e, startVertex, endVertex) {
+                PresentationModel.focusedVertex = PresentationModel.reductionIsIngoing ? endVertex : startVertex;
+                PresentationModel.reductionStep = PresentationModel.ReductionStep.INITIAL;
+                PresentationModel.graph.update();
             };
             InitialReductionController.prototype.onChangeReductionDirection = function (e, isIngoing) {
                 PresentationModel.reductionIsIngoing = isIngoing;
@@ -1914,6 +1945,10 @@ var Presentation;
                             Model.Types.solutionSearchState = Model.Types.SolutionSearchState.ONE_SOLUTION_FOUND;
                             break;
                         }
+                        if (!Model.Types.solutionTreeNode.separatingArc) {
+                            Model.Types.solutionSearchState = Model.Types.SolutionSearchState.NEXT_NODE_SELECTION;
+                            break;
+                        }
                         Model.Types.solutionTreeNode.branch();
                         Model.Types.solutionTree.pushUnvisited(Model.Types.solutionTreeNode.leftChild);
                         Model.Types.solutionTree.pushUnvisited(Model.Types.solutionTreeNode.rightChild);
@@ -1940,6 +1975,29 @@ var Presentation;
             };
             SolutionSearchController.prototype.onWeightInput = function (e, startVertex, endVertex, value) {
             };
+            SolutionSearchController.prototype.onWeightClick = function (e, startVertex, endVertex) {
+                if (Model.Types.solutionSearchState != Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION)
+                    return;
+                var arc = Model.Types.currentGraph.getArcFromEnds(startVertex, endVertex);
+                var modelIndex = Model.Types.currentGraph.getArcIndex(arc);
+                if (Model.Types.solutionTreeNode.state.weightReduction.maxBoundChangeZeroArcs.indexOf(modelIndex) < 0)
+                    return;
+                Model.Types.solutionTreeNode.separatingArc = arc;
+                if (Model.Types.currentGraph.isSolution) {
+                    // Should be unreachable
+                    Model.Types.solutionTree.maxBound = Model.Types.solutionTreeNode.state.getBound();
+                    Model.Types.solutionSearchState = Model.Types.SolutionSearchState.ONE_SOLUTION_FOUND;
+                }
+                else {
+                    Model.Types.solutionTreeNode.branch();
+                    Model.Types.solutionTree.pushUnvisited(Model.Types.solutionTreeNode.leftChild);
+                    Model.Types.solutionTree.pushUnvisited(Model.Types.solutionTreeNode.rightChild);
+                    Model.Types.currentGraph = Model.Types.solutionTreeNode.leftChild.state.graph;
+                    Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_LEFT;
+                }
+                PresentationModel.graph.update();
+                PresentationModel.solutionTree.update();
+            };
             SolutionSearchController.prototype.onTreeViewClick = function (e, x, y) {
                 if (Model.Types.solutionSearchState != Model.Types.SolutionSearchState.NEXT_NODE_SELECTION)
                     return;
@@ -1958,7 +2016,7 @@ var Presentation;
                     var nodeIndex = model.unvisited.indexOf(node.model);
                     if (nodeIndex < 0 || nodeIndex >= model.lowestBoundUnvisitedCount())
                         continue;
-                    Model.Types.solutionTree.popUnvisited().focus();
+                    Model.Types.solutionTree.popUnvisited(nodeIndex).focus();
                     Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION;
                     PresentationModel.graph.update();
                     PresentationModel.solutionTree.update();
@@ -1981,6 +2039,12 @@ var Presentation;
             }
         }
         Controller.treeViewMouseHandler = treeViewMouseHandler;
+        function tableViewMouseHandler(type, e, x, y) {
+            if (type == 'click') {
+                currentController.onWeightClick(e, y, x);
+            }
+        }
+        Controller.tableViewMouseHandler = tableViewMouseHandler;
     })(Controller = Presentation.Controller || (Presentation.Controller = {}));
 })(Presentation || (Presentation = {}));
 addEventListener('load', function () {
@@ -2005,4 +2069,5 @@ addEventListener('load', function () {
     boundBarView.init(null, document.getElementById("deploy-bar"));
     treeView.init(Presentation.GraphicLibrary.canvasFactory, document.getElementById("deploy-tree"));
     treeView.mouseHandler = Presentation.Controller.treeViewMouseHandler;
+    tableView.mouseHandler = Presentation.Controller.tableViewMouseHandler;
 }, false);
