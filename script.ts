@@ -2192,7 +2192,7 @@ module Presentation {
                     const nodeIndex = model.unvisited.indexOf(<any> node.model);
                     if (nodeIndex < 0 || nodeIndex >= model.lowestBoundUnvisitedCount())
                         continue;
-                    Model.Types.solutionTree.popUnvisited().focus();
+                    Model.Types.solutionTree.popUnvisited(nodeIndex).focus();
                     Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION;
                     PresentationModel.graph.update();
                     PresentationModel.solutionTree.update();
