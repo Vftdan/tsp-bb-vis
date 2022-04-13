@@ -2145,6 +2145,10 @@ module Presentation {
                             Model.Types.solutionSearchState = Model.Types.SolutionSearchState.ONE_SOLUTION_FOUND;
                             break;
                         }
+                        if (!Model.Types.solutionTreeNode.separatingArc) {
+                            Model.Types.solutionSearchState = Model.Types.SolutionSearchState.NEXT_NODE_SELECTION;
+                            break;
+                        }
                         Model.Types.solutionTreeNode.branch();
                         Model.Types.solutionTree.pushUnvisited(<any> Model.Types.solutionTreeNode.leftChild);
                         Model.Types.solutionTree.pushUnvisited(<any> Model.Types.solutionTreeNode.rightChild);
