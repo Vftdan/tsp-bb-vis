@@ -2107,6 +2107,9 @@ module Presentation {
             }
 
             onWeightClick(e: MouseEvent | null, startVertex: number, endVertex: number) {
+                PresentationModel.focusedVertex = PresentationModel.reductionIsIngoing ? endVertex : startVertex;
+                PresentationModel.reductionStep = PresentationModel.ReductionStep.INITIAL;
+                PresentationModel.graph.update();
             }
 
             onChangeReductionDirection(e: Event | null, isIngoing: boolean) {
