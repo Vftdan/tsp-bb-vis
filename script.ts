@@ -683,6 +683,7 @@ module Presentation {
         export enum GraphArcStyle {
             UNFOCUSED,
             FOCUSED,
+            SELECTABLE,
         }
         export enum GraphEdgeStyle {
             UNFOCUSED,
@@ -911,6 +912,10 @@ module Presentation {
                     };
                     if (this.isReductionShown && focusedVertex != reductionVertexNumber)
                         pa.style = GraphArcStyle.UNFOCUSED;
+                    if (Model.Types.visualisationState == Model.Types.VisualisationState.SOLUTION_SEARCH && Model.Types.solutionSearchState == Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION) {
+                        if (Model.Types.solutionTreeNode.state.weightReduction.maxBoundChangeZeroArcs.indexOf(modelIndex) >= 0)
+                            pa.style = GraphArcStyle.SELECTABLE;
+                    }
                     if (focusedVertex == reductionVertexNumber && this.isReductionShown) {
                         const weightReduction = Model.Types.solutionTreeNode.state.weightReduction;
                         if (reductionIsIngoing && weightReduction.columnsSorted || !reductionIsIngoing && weightReduction.rowsSorted) {
@@ -1368,7 +1373,7 @@ module Presentation {
             }
 
             abstract init(g: Presentation.GraphicLibrary.Factory, parentNode: HTMLElement);
-            mouseHandler = null;
+            mouseHandler: MouseHandler = null;
         }
 
         abstract class GraphicalView extends BaseView {
@@ -1407,6 +1412,7 @@ module Presentation {
             // table cell
             TABLE_CELL_FOCUSED,
             TABLE_CELL_UNFOCUSED,
+            TABLE_CELL_SELECTABLE,
             TABLE_CELL_MIN,
             TABLE_CELL_INFINITE,
             TABLE_CELL_TAKEN,
@@ -1439,6 +1445,7 @@ module Presentation {
             [ColorIndex.GRAPH_ARC_WEIGHT_NONMIN_BG]: "#c0befe",
             [ColorIndex.TABLE_CELL_FOCUSED]: "#ffffff",
             [ColorIndex.TABLE_CELL_UNFOCUSED]: "#cccccc",
+            [ColorIndex.TABLE_CELL_SELECTABLE]: "#d8a77d",
             [ColorIndex.TABLE_CELL_MIN]: "#7da7d8",
             [ColorIndex.TABLE_CELL_INFINITE]: "#333333",
             [ColorIndex.TABLE_CELL_TAKEN]: "#000000",
@@ -1491,7 +1498,11 @@ module Presentation {
                     const p2 = {x: 0, y: -width};
                     const p3 = {x: length, y: 0};
                     const p4 = {x: 0, y: width};  // for taken
-                    const fg = colors[a.style == GraphArcStyle.FOCUSED ? ColorIndex.GRAPH_ARC_WEIGHT_FOCUSED : ColorIndex.GRAPH_ARC_WEIGHT_UNFOCUSED];
+                    const fg = colors[{
+                        [GraphArcStyle.UNFOCUSED]: ColorIndex.GRAPH_ARC_WEIGHT_UNFOCUSED,
+                        [GraphArcStyle.FOCUSED]: ColorIndex.GRAPH_ARC_WEIGHT_FOCUSED,
+                        [GraphArcStyle.SELECTABLE]: ColorIndex.GRAPH_ARC_WEIGHT_FOCUSED,
+                    }[a.style]];
                     const bg = a.isZero ? fg : (a.isMin ? colors[ColorIndex.GRAPH_ARC_WEIGHT_MIN_BG] : null);
                     if (a.fillPart) {
                         const partP1 = {x: length * (1 - a.fillPart), y: 0};
@@ -1585,6 +1596,8 @@ module Presentation {
                                 weight = pArc.weight;
                                 if (pArc.style == PresentationModel.GraphArcStyle.UNFOCUSED) {
                                     cell.style.backgroundColor = colors[ColorIndex.TABLE_CELL_UNFOCUSED];
+                                } else if (pArc.style == PresentationModel.GraphArcStyle.SELECTABLE) {
+                                    cell.style.backgroundColor = colors[ColorIndex.TABLE_CELL_SELECTABLE];
                                 } else if (pArc.isMin) {
                                     cell.style.backgroundColor = colors[ColorIndex.TABLE_CELL_MIN];
                                 } else {
@@ -1703,12 +1716,17 @@ module Presentation {
                 td.className = 'weight-data';
                 td.referencedEdge = [startVertex, endVertex];
                 const view = this;
-                const handler = function (e) {
+                const inputHandler = function (e) {
                     if (view.inputHandler && td.referencedEdge.length == 2)
                         view.inputHandler(e, td.referencedEdge[0], td.referencedEdge[1], td.innerText);
                 };
-                td.addEventListener('input', handler, false);
-                td.addEventListener('blur', handler, false);
+                const clickHandler = function (e) {
+                    if (view.mouseHandler && td.referencedEdge.length == 2)
+                        view.mouseHandler('click', e, td.referencedEdge[1], td.referencedEdge[0]);
+                };
+                td.addEventListener('input', inputHandler, false);
+                td.addEventListener('blur', inputHandler, false);
+                td.addEventListener('click', clickHandler, false);
                 return td;
             }
         }
@@ -1983,6 +2001,7 @@ module Presentation {
         export interface IController {
             onGraphViewClick(e: MouseEvent | null, x: number, y: number): void;
             onWeightInput(e: InputEvent | KeyboardEvent | FocusEvent | null, startVertex: number, endVertex: number, value: string);
+            onWeightClick(e: MouseEvent | null, startVertex: number, endVertex: number): void;
             onContinueClick(e: MouseEvent | null);
             onChangeReductionDirection(e: Event | null, isIngoing: boolean);
             onChangeReductionStep(e: Event | null, backward: boolean);
@@ -2000,6 +2019,11 @@ module Presentation {
             onWeightInput(e: InputEvent | KeyboardEvent | FocusEvent | null, startVertex: number, endVertex: number, value: string) {
                 if (currentController)
                     currentController.onWeightInput(e, startVertex, endVertex, value);
+            },
+
+            onWeightClick(e: MouseEvent | null, startVertex: number, endVertex: number) {
+                if (currentController)
+                    currentController.onWeightClick(e, startVertex, endVertex);
             },
 
             onContinueClick(e: MouseEvent | null) {
@@ -2036,6 +2060,9 @@ module Presentation {
                 else
                     Model.Types.originalGraph.setArc(startVertex, endVertex, numericValue);
                 PresentationModel.graph.update();
+            }
+
+            onWeightClick(e: MouseEvent | null, startVertex: number, endVertex: number) {
             }
 
             onContinueClick(e: MouseEvent) {
@@ -2077,6 +2104,9 @@ module Presentation {
             }
 
             onWeightInput(e: InputEvent | KeyboardEvent | FocusEvent | null, startVertex: number, endVertex: number, value: string) {
+            }
+
+            onWeightClick(e: MouseEvent | null, startVertex: number, endVertex: number) {
             }
 
             onChangeReductionDirection(e: Event | null, isIngoing: boolean) {
@@ -2178,6 +2208,29 @@ module Presentation {
             onWeightInput(e: InputEvent | KeyboardEvent | FocusEvent | null, startVertex: number, endVertex: number, value: string) {
             }
 
+            onWeightClick(e: MouseEvent | null, startVertex: number, endVertex: number) {
+                if (Model.Types.solutionSearchState != Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION)
+                    return;
+                const arc = Model.Types.currentGraph.getArcFromEnds(startVertex, endVertex);
+                const modelIndex = Model.Types.currentGraph.getArcIndex(arc);
+                if (Model.Types.solutionTreeNode.state.weightReduction.maxBoundChangeZeroArcs.indexOf(modelIndex) < 0)
+                    return;
+                Model.Types.solutionTreeNode.separatingArc = arc;
+                if (Model.Types.currentGraph.isSolution) {
+                    // Should be unreachable
+                    Model.Types.solutionTree.maxBound = Model.Types.solutionTreeNode.state.getBound();
+                    Model.Types.solutionSearchState = Model.Types.SolutionSearchState.ONE_SOLUTION_FOUND;
+                } else {
+                    Model.Types.solutionTreeNode.branch();
+                    Model.Types.solutionTree.pushUnvisited(<any>Model.Types.solutionTreeNode.leftChild);
+                    Model.Types.solutionTree.pushUnvisited(<any>Model.Types.solutionTreeNode.rightChild);
+                    Model.Types.currentGraph = Model.Types.solutionTreeNode.leftChild.state.graph;
+                    Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_LEFT;
+                }
+                PresentationModel.graph.update();
+                PresentationModel.solutionTree.update();
+            }
+
             onTreeViewClick(e: MouseEvent | null, x: number, y: number): void {
                 if (Model.Types.solutionSearchState != Model.Types.SolutionSearchState.NEXT_NODE_SELECTION)
                     return;
@@ -2218,6 +2271,12 @@ module Presentation {
                 controller.onTreeViewClick(e, x, y);
             }
         }
+
+        export function tableViewMouseHandler(type: string, e: MouseEvent, x: number, y: number) {
+            if (type == 'click') {
+                currentController.onWeightClick(e, y, x);
+            }
+        }
     }
 }
 
@@ -2243,4 +2302,5 @@ addEventListener('load', function () {
     boundBarView.init(null, document.getElementById("deploy-bar"));
     treeView.init(Presentation.GraphicLibrary.canvasFactory, document.getElementById("deploy-tree"));
     treeView.mouseHandler = Presentation.Controller.treeViewMouseHandler;
+    tableView.mouseHandler = Presentation.Controller.tableViewMouseHandler;
 }, false);
