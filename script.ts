@@ -430,7 +430,7 @@ module Model {
                 if (this.unvisited.length == 0)
                     return 0;
                 const bound = this.unvisited[0].state.getBound();
-                if (bound > this.maxBound)
+                if (bound > this.maxBound || bound == Infinity)
                     return 0;
                 for (let i = 1; i < this.unvisited.length; ++i)
                     if (this.unvisited[i].state.getBound() > bound)
@@ -571,9 +571,9 @@ module Model {
 
                 let boundChange = 0;
                 for (const i of rows)
-                    boundChange += this.rowsSorted[i][0].weight;
+                    boundChange += (this.rowsSorted[i][0] || DUMMY_ARC_WITH_WEIGHT).weight;
                 for (const i of columns)
-                    boundChange += this.columnsSorted[i][0].weight;
+                    boundChange += (this.columnsSorted[i][0] || DUMMY_ARC_WITH_WEIGHT).weight;
                 return boundChange;
             }
 
@@ -594,10 +594,10 @@ module Model {
                     if (!isFinite(weights.weights[idx])) {
                         continue;
                     }
-                    if (rowSet[arc.start]) {
+                    if (rowSet[arc.start] && this.rowsSorted[arc.start] && this.rowsSorted[arc.start].length) {
                         weights.weights[idx] -= this.rowsSorted[arc.start][0].weight;
                     }
-                    if (columnSet[arc.end])
+                    if (columnSet[arc.end] && this.columnsSorted[arc.end] && this.columnsSorted[arc.end].length)
                         weights.weights[idx] -= this.columnsSorted[arc.end][0].weight;
                 }
             }
@@ -898,6 +898,8 @@ module Presentation {
 
                 this.edges = [];
                 this._edgeEndsToIndices = Object.create(null);
+                if (this.isReductionShown)
+                    this.reductionMin = Infinity;
                 for (const arc of model.arcs) {
                     if (!arc)
                         continue;
@@ -946,12 +948,12 @@ module Presentation {
                     if (focusedVertex == reductionVertexNumber && this.isReductionShown) {
                         const weightReduction = node.state.weightReduction;
                         if (reductionIsIngoing && weightReduction.columnsSorted || !reductionIsIngoing && weightReduction.rowsSorted) {
-                            const sorted = reductionIsIngoing ? weightReduction.columnsSorted[arc.end] : weightReduction.rowsSorted[arc.start];
+                            const sorted = (reductionIsIngoing ? weightReduction.columnsSorted[arc.end] : weightReduction.rowsSorted[arc.start]) || [];
                             switch (reductionStep) {
                                 case Presentation.PresentationModel.ReductionStep.INITIAL:
                                     break;
                                 case Presentation.PresentationModel.ReductionStep.MIN_FOUND: {
-                                    const min = sorted[0].weight;
+                                    const min = (sorted[0] || Model.Algo.DUMMY_ARC_WITH_WEIGHT).weight;
                                     this.reductionMin = min;
                                     if (min == weight) {
                                         pa.isMin = true;
@@ -961,7 +963,7 @@ module Presentation {
                                     break;
                                 }
                                 case Presentation.PresentationModel.ReductionStep.REDUCED: {
-                                    if (sorted[0].weight == sorted[1].weight)
+                                    if (sorted.length < 2 || sorted[0].weight == sorted[1].weight)
                                         break;
                                     const min = sorted[1].weight - sorted[0].weight;
                                     this.reductionMin = min;
