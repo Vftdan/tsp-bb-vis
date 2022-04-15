@@ -839,6 +839,15 @@ module Presentation {
                 }
 
                 this.isReductionShown = (Model.Types.solutionTreeNode && Model.Types.solutionTreeNode.state && focusedVertex != -1) || false;
+                let node = Model.Types.solutionTreeNode;
+                if (node && this.isReductionShown)
+                    if (Model.Types.visualisationState == Model.Types.VisualisationState.SOLUTION_SEARCH) {
+                        if (Model.Types.solutionSearchState == Model.Types.SolutionSearchState.BRANCH_LEFT)
+                            node = node.leftChild;
+                        else if (Model.Types.solutionSearchState == Model.Types.SolutionSearchState.BRANCH_RIGHT)
+                            node = node.rightChild;
+                    }
+
                 if (recalculateBoundMax && Model.Types.solutionTree) {
                     const root = Model.Types.solutionTree.getRoot();
                     if (root.state) {
@@ -860,30 +869,30 @@ module Presentation {
                         this.boundMax = 1;
                 }
                 this.boundDelta = 0;
-                if (Model.Types.solutionTreeNode && Model.Types.solutionTreeNode.state) {
-                    this.bound = Model.Types.solutionTreeNode.state.getBound();
+                if (node && node.state) {
+                    this.bound = node.state.getBound();
                     if (this.isReductionShown) {
                         if (reductionStep == ReductionStep.MIN_FOUND) {
-                            this.boundDelta = Model.Types.solutionTreeNode.state.weightReduction.getBoundChange(
+                            this.boundDelta = node.state.weightReduction.getBoundChange(
                                 reductionIsIngoing ? [] : [focusedVertex],
                                 reductionIsIngoing ? [focusedVertex] : [],
                             );
                         }
-                        const previousBound = Model.Types.solutionTreeNode.parent ? Model.Types.solutionTreeNode.parent.state.getBound() : 0;
+                        const previousBound = node.parent ? node.parent.state.getBound() : 0;
                         let rows = null, columns = null;
                         if (reductionIsIngoing) {
-                            let index = Model.Types.solutionTreeNode.state.weightReduction.affectedColumns.indexOf(focusedVertex);
+                            let index = node.state.weightReduction.affectedColumns.indexOf(focusedVertex);
                             if (reductionStep == ReductionStep.REDUCED)
                                 ++index;
-                            columns = Model.Types.solutionTreeNode.state.weightReduction.affectedColumns.slice(0, index);
+                            columns = node.state.weightReduction.affectedColumns.slice(0, index);
                         } else {
                             columns = [];
-                            let index = Model.Types.solutionTreeNode.state.weightReduction.affectedRows.indexOf(focusedVertex);
+                            let index = node.state.weightReduction.affectedRows.indexOf(focusedVertex);
                             if (reductionStep == ReductionStep.REDUCED)
                                 ++index;
-                            rows = Model.Types.solutionTreeNode.state.weightReduction.affectedColumns.slice(0, index);
+                            rows = node.state.weightReduction.affectedRows.slice(0, index);
                         }
-                        this.bound = previousBound + Model.Types.solutionTreeNode.state.weightReduction.getBoundChange(rows, columns);
+                        this.bound = previousBound + node.state.weightReduction.getBoundChange(rows, columns);
                     }
                 }
 
@@ -898,11 +907,11 @@ module Presentation {
                     if (this.isReductionShown) {
                         const threshold = reductionStep == ReductionStep.REDUCED ? focusedVertex + 1 : focusedVertex;
                         if (reductionVertexNumber >= threshold && !reductionIsIngoing)
-                            weight = Model.Types.solutionTreeNode.state.weightReduction.initialWeights.weights[modelIndex];
+                            weight = node.state.weightReduction.initialWeights.weights[modelIndex];
                         else if (reductionVertexNumber < threshold && !reductionIsIngoing || reductionVertexNumber >= threshold && reductionIsIngoing)
-                            weight = Model.Types.solutionTreeNode.state.weightReduction.intermediateWeights.weights[modelIndex];
+                            weight = node.state.weightReduction.intermediateWeights.weights[modelIndex];
                         else if (reductionVertexNumber < threshold && reductionIsIngoing)
-                            weight = Model.Types.solutionTreeNode.state.weightReduction.finalWeights.weights[modelIndex];
+                            weight = node.state.weightReduction.finalWeights.weights[modelIndex];
                     }
                     if (typeof weight != 'number' || isNaN(weight))
                         continue;
@@ -931,11 +940,11 @@ module Presentation {
                     if (this.isReductionShown && focusedVertex != reductionVertexNumber)
                         pa.style = GraphArcStyle.UNFOCUSED;
                     if (Model.Types.visualisationState == Model.Types.VisualisationState.SOLUTION_SEARCH && Model.Types.solutionSearchState == Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION) {
-                        if (Model.Types.solutionTreeNode.state.weightReduction.maxBoundChangeZeroArcs.indexOf(modelIndex) >= 0)
+                        if (node.state.weightReduction.maxBoundChangeZeroArcs.indexOf(modelIndex) >= 0)
                             pa.style = GraphArcStyle.SELECTABLE;
                     }
                     if (focusedVertex == reductionVertexNumber && this.isReductionShown) {
-                        const weightReduction = Model.Types.solutionTreeNode.state.weightReduction;
+                        const weightReduction = node.state.weightReduction;
                         if (reductionIsIngoing && weightReduction.columnsSorted || !reductionIsIngoing && weightReduction.rowsSorted) {
                             const sorted = reductionIsIngoing ? weightReduction.columnsSorted[arc.end] : weightReduction.rowsSorted[arc.start];
                             switch (reductionStep) {
@@ -2065,6 +2074,20 @@ module Presentation {
             },
         };
 
+        function showReduction() {
+            PresentationModel.focusedVertex = 0;
+            while (!Model.Types.currentGraph.vertices[PresentationModel.focusedVertex] ||
+                   Model.Types.currentGraph.takenStartVertices[PresentationModel.focusedVertex]) {
+                ++PresentationModel.focusedVertex;
+                if (PresentationModel.focusedVertex >= Model.Types.currentGraph.vertices.length) {
+                    PresentationModel.focusedVertex = -1;
+                    break;
+                }
+            }
+            PresentationModel.reductionStep = PresentationModel.ReductionStep.INITIAL;
+            PresentationModel.reductionIsIngoing = false;
+        }
+
         class GraphInputController implements IController {
             onGraphViewClick(e: MouseEvent | null, x: number, y: number) {
                 Model.Types.originalGraph.addVertex(x, y);
@@ -2093,9 +2116,7 @@ module Presentation {
                 const root = Model.Types.solutionTree.getRoot();
                 root.focus();
                 currentController = new InitialReductionController();
-                PresentationModel.focusedVertex = 0;
-                while (!Model.Types.currentGraph.vertices[PresentationModel.focusedVertex])
-                    ++PresentationModel.focusedVertex;
+                showReduction();
                 PresentationModel.graph.update();
             }
 
@@ -2109,13 +2130,8 @@ module Presentation {
             }
         }
 
-        class InitialReductionController implements IController {
+        class ReductionController implements IController {
             onContinueClick(e: MouseEvent | null) {
-                PresentationModel.focusedVertex = -1;
-                currentController = new SolutionSearchController();
-                Model.Types.visualisationState = Model.Types.VisualisationState.SOLUTION_SEARCH;
-                PresentationModel.graph.update();
-                PresentationModel.solutionTree.update();
             }
 
             onGraphViewClick(e: MouseEvent | null, x: number, y: number): void {
@@ -2125,13 +2141,25 @@ module Presentation {
             }
 
             onWeightClick(e: MouseEvent | null, startVertex: number, endVertex: number) {
-                PresentationModel.focusedVertex = PresentationModel.reductionIsIngoing ? endVertex : startVertex;
+                const modelIndex = PresentationModel.reductionIsIngoing ? endVertex : startVertex;
+                if ((PresentationModel.reductionIsIngoing ? Model.Types.currentGraph.takenEndVertices : Model.Types.currentGraph.takenStartVertices)[modelIndex])
+                    return;
+                PresentationModel.focusedVertex = modelIndex;
                 PresentationModel.reductionStep = PresentationModel.ReductionStep.INITIAL;
                 PresentationModel.graph.update();
             }
 
             onChangeReductionDirection(e: Event | null, isIngoing: boolean) {
                 PresentationModel.reductionIsIngoing = isIngoing;
+                if ((isIngoing ? Model.Types.currentGraph.takenEndVertices : Model.Types.currentGraph.takenStartVertices)[PresentationModel.focusedVertex]) {
+                    PresentationModel.reductionStep = Infinity;
+                    this.onChangeReductionStep(null, false);
+                    if (PresentationModel.reductionIsIngoing != isIngoing) {
+                        PresentationModel.reductionStep = -1;
+                        this.onChangeReductionStep(null, true);
+                    }
+                    return;
+                }
                 PresentationModel.graph.update();
             }
 
@@ -2145,39 +2173,63 @@ module Presentation {
                     do {
                         if (++PresentationModel.focusedVertex >= Model.Types.currentGraph.vertices.length) {
                             PresentationModel.focusedVertex = 0;
-                            while (!Model.Types.currentGraph.vertices[PresentationModel.focusedVertex])
-                                ++PresentationModel.focusedVertex;
                             PresentationModel.reductionIsIngoing = !PresentationModel.reductionIsIngoing;
+                            while (this._isVertexToSkip())
+                                ++PresentationModel.focusedVertex;
                             break;
                         }
-                    } while (!Model.Types.currentGraph.vertices[PresentationModel.focusedVertex]);
+                    } while (this._isVertexToSkip());
                 } else if (PresentationModel.reductionStep < PresentationModel.ReductionStep.INITIAL) {
                     PresentationModel.reductionStep = PresentationModel.ReductionStep.REDUCED;
                     do {
                         if (--PresentationModel.focusedVertex < 0) {
                             PresentationModel.focusedVertex = Model.Types.currentGraph.vertices.length - 1;
-                            while (!Model.Types.currentGraph.vertices[PresentationModel.focusedVertex])
-                                --PresentationModel.focusedVertex;
                             PresentationModel.reductionIsIngoing = !PresentationModel.reductionIsIngoing;
+                            while (this._isVertexToSkip())
+                                --PresentationModel.focusedVertex
                             break;
                         }
-                    } while (!Model.Types.currentGraph.vertices[PresentationModel.focusedVertex]);
+                    } while (this._isVertexToSkip());
                 }
                 PresentationModel.graph.update();
+            }
+
+            protected _isVertexToSkip(): boolean {
+                const vertexExists = Model.Types.currentGraph.vertices[PresentationModel.focusedVertex];
+                if (!vertexExists)
+                    return true;
+                return (PresentationModel.reductionIsIngoing ? Model.Types.currentGraph.takenEndVertices : Model.Types.currentGraph.takenStartVertices)[PresentationModel.focusedVertex];
             }
 
             onTreeViewClick(e: MouseEvent | null, x: number, y: number): void {
             }
         }
 
+        class InitialReductionController extends ReductionController {
+            onContinueClick(e: MouseEvent | null) {
+                PresentationModel.focusedVertex = -1;
+                currentController = new SolutionSearchController();
+                Model.Types.visualisationState = Model.Types.VisualisationState.SOLUTION_SEARCH;
+                PresentationModel.graph.update();
+                PresentationModel.solutionTree.update();
+            }
+        }
+
         class SolutionSearchController implements IController {
+            reductionController: ReductionController = new ReductionController();
+
             onChangeReductionDirection(e: Event | null, isIngoing: boolean) {
+                if (PresentationModel.graph.isReductionShown)
+                    return this.reductionController.onChangeReductionDirection(e, isIngoing);
             }
 
             onChangeReductionStep(e: Event | null, backward: boolean) {
+                if (PresentationModel.graph.isReductionShown)
+                    return this.reductionController.onChangeReductionStep(e, backward);
             }
 
             onContinueClick(e: MouseEvent | null) {
+                PresentationModel.focusedVertex = -1;
                 switch (Model.Types.solutionSearchState) {
                     case Model.Types.SolutionSearchState.NEXT_NODE_SELECTION:
                         if (!Model.Types.solutionTree.lowestBoundUnvisitedCount()) {
@@ -2194,10 +2246,12 @@ module Presentation {
                         ])) {
                             Model.Types.solutionSearchState = Model.Types.SolutionSearchState.NEXT_NODE_SELECTION;
                         }
+                        showReduction();
                         break;
                     case Model.Types.SolutionSearchState.BRANCH_LEFT:
                         Model.Types.currentGraph = Model.Types.solutionTreeNode.rightChild.state.graph;
                         Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_RIGHT;
+                        showReduction();
                         break;
                     case Model.Types.SolutionSearchState.BRANCH_RIGHT:
                     case Model.Types.SolutionSearchState.ONE_SOLUTION_FOUND:
@@ -2238,6 +2292,9 @@ module Presentation {
             }
 
             onWeightClick(e: MouseEvent | null, startVertex: number, endVertex: number) {
+                if (PresentationModel.graph.isReductionShown)
+                    return this.reductionController.onWeightClick(e, startVertex, endVertex);
+
                 if (Model.Types.solutionSearchState != Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION)
                     return;
                 const arc = Model.Types.currentGraph.getArcFromEnds(startVertex, endVertex);
