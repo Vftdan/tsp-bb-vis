@@ -692,6 +692,14 @@ var Presentation;
                     this._modelToPresentationVertexIndices[pv.modelIndex] = pv.index;
                 }
                 this.isReductionShown = (Model.Types.solutionTreeNode && Model.Types.solutionTreeNode.state && PresentationModel.focusedVertex != -1) || false;
+                var node = Model.Types.solutionTreeNode;
+                if (node && this.isReductionShown)
+                    if (Model.Types.visualisationState == Model.Types.VisualisationState.SOLUTION_SEARCH) {
+                        if (Model.Types.solutionSearchState == Model.Types.SolutionSearchState.BRANCH_LEFT)
+                            node = node.leftChild;
+                        else if (Model.Types.solutionSearchState == Model.Types.SolutionSearchState.BRANCH_RIGHT)
+                            node = node.rightChild;
+                    }
                 if (recalculateBoundMax && Model.Types.solutionTree) {
                     var root = Model.Types.solutionTree.getRoot();
                     if (root.state) {
@@ -714,28 +722,28 @@ var Presentation;
                         this.boundMax = 1;
                 }
                 this.boundDelta = 0;
-                if (Model.Types.solutionTreeNode && Model.Types.solutionTreeNode.state) {
-                    this.bound = Model.Types.solutionTreeNode.state.getBound();
+                if (node && node.state) {
+                    this.bound = node.state.getBound();
                     if (this.isReductionShown) {
                         if (PresentationModel.reductionStep == ReductionStep.MIN_FOUND) {
-                            this.boundDelta = Model.Types.solutionTreeNode.state.weightReduction.getBoundChange(PresentationModel.reductionIsIngoing ? [] : [PresentationModel.focusedVertex], PresentationModel.reductionIsIngoing ? [PresentationModel.focusedVertex] : []);
+                            this.boundDelta = node.state.weightReduction.getBoundChange(PresentationModel.reductionIsIngoing ? [] : [PresentationModel.focusedVertex], PresentationModel.reductionIsIngoing ? [PresentationModel.focusedVertex] : []);
                         }
-                        var previousBound = Model.Types.solutionTreeNode.parent ? Model.Types.solutionTreeNode.parent.state.getBound() : 0;
+                        var previousBound = node.parent ? node.parent.state.getBound() : 0;
                         var rows = null, columns = null;
                         if (PresentationModel.reductionIsIngoing) {
-                            var index = Model.Types.solutionTreeNode.state.weightReduction.affectedColumns.indexOf(PresentationModel.focusedVertex);
+                            var index = node.state.weightReduction.affectedColumns.indexOf(PresentationModel.focusedVertex);
                             if (PresentationModel.reductionStep == ReductionStep.REDUCED)
                                 ++index;
-                            columns = Model.Types.solutionTreeNode.state.weightReduction.affectedColumns.slice(0, index);
+                            columns = node.state.weightReduction.affectedColumns.slice(0, index);
                         }
                         else {
                             columns = [];
-                            var index = Model.Types.solutionTreeNode.state.weightReduction.affectedRows.indexOf(PresentationModel.focusedVertex);
+                            var index = node.state.weightReduction.affectedRows.indexOf(PresentationModel.focusedVertex);
                             if (PresentationModel.reductionStep == ReductionStep.REDUCED)
                                 ++index;
-                            rows = Model.Types.solutionTreeNode.state.weightReduction.affectedColumns.slice(0, index);
+                            rows = node.state.weightReduction.affectedRows.slice(0, index);
                         }
-                        this.bound = previousBound + Model.Types.solutionTreeNode.state.weightReduction.getBoundChange(rows, columns);
+                        this.bound = previousBound + node.state.weightReduction.getBoundChange(rows, columns);
                     }
                 }
                 this.edges = [];
@@ -750,11 +758,11 @@ var Presentation;
                     if (this.isReductionShown) {
                         var threshold = PresentationModel.reductionStep == ReductionStep.REDUCED ? PresentationModel.focusedVertex + 1 : PresentationModel.focusedVertex;
                         if (reductionVertexNumber >= threshold && !PresentationModel.reductionIsIngoing)
-                            weight = Model.Types.solutionTreeNode.state.weightReduction.initialWeights.weights[modelIndex];
+                            weight = node.state.weightReduction.initialWeights.weights[modelIndex];
                         else if (reductionVertexNumber < threshold && !PresentationModel.reductionIsIngoing || reductionVertexNumber >= threshold && PresentationModel.reductionIsIngoing)
-                            weight = Model.Types.solutionTreeNode.state.weightReduction.intermediateWeights.weights[modelIndex];
+                            weight = node.state.weightReduction.intermediateWeights.weights[modelIndex];
                         else if (reductionVertexNumber < threshold && PresentationModel.reductionIsIngoing)
-                            weight = Model.Types.solutionTreeNode.state.weightReduction.finalWeights.weights[modelIndex];
+                            weight = node.state.weightReduction.finalWeights.weights[modelIndex];
                     }
                     if (typeof weight != 'number' || isNaN(weight))
                         continue;
@@ -782,11 +790,11 @@ var Presentation;
                     if (this.isReductionShown && PresentationModel.focusedVertex != reductionVertexNumber)
                         pa.style = GraphArcStyle.UNFOCUSED;
                     if (Model.Types.visualisationState == Model.Types.VisualisationState.SOLUTION_SEARCH && Model.Types.solutionSearchState == Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION) {
-                        if (Model.Types.solutionTreeNode.state.weightReduction.maxBoundChangeZeroArcs.indexOf(modelIndex) >= 0)
+                        if (node.state.weightReduction.maxBoundChangeZeroArcs.indexOf(modelIndex) >= 0)
                             pa.style = GraphArcStyle.SELECTABLE;
                     }
                     if (PresentationModel.focusedVertex == reductionVertexNumber && this.isReductionShown) {
-                        var weightReduction = Model.Types.solutionTreeNode.state.weightReduction;
+                        var weightReduction = node.state.weightReduction;
                         if (PresentationModel.reductionIsIngoing && weightReduction.columnsSorted || !PresentationModel.reductionIsIngoing && weightReduction.rowsSorted) {
                             var sorted = PresentationModel.reductionIsIngoing ? weightReduction.columnsSorted[arc.end] : weightReduction.rowsSorted[arc.start];
                             switch (PresentationModel.reductionStep) {
@@ -1841,6 +1849,19 @@ var Presentation;
                     currentController.onTreeViewClick(e, x, y);
             }
         };
+        function showReduction() {
+            PresentationModel.focusedVertex = 0;
+            while (!Model.Types.currentGraph.vertices[PresentationModel.focusedVertex] ||
+                Model.Types.currentGraph.takenStartVertices[PresentationModel.focusedVertex]) {
+                ++PresentationModel.focusedVertex;
+                if (PresentationModel.focusedVertex >= Model.Types.currentGraph.vertices.length) {
+                    PresentationModel.focusedVertex = -1;
+                    break;
+                }
+            }
+            PresentationModel.reductionStep = PresentationModel.ReductionStep.INITIAL;
+            PresentationModel.reductionIsIngoing = false;
+        }
         var GraphInputController = /** @class */ (function () {
             function GraphInputController() {
             }
@@ -1868,9 +1889,7 @@ var Presentation;
                 var root = Model.Types.solutionTree.getRoot();
                 root.focus();
                 currentController = new InitialReductionController();
-                PresentationModel.focusedVertex = 0;
-                while (!Model.Types.currentGraph.vertices[PresentationModel.focusedVertex])
-                    ++PresentationModel.focusedVertex;
+                showReduction();
                 PresentationModel.graph.update();
             };
             GraphInputController.prototype.onChangeReductionDirection = function (e, isIngoing) {
@@ -1881,30 +1900,37 @@ var Presentation;
             };
             return GraphInputController;
         }());
-        var InitialReductionController = /** @class */ (function () {
-            function InitialReductionController() {
+        var ReductionController = /** @class */ (function () {
+            function ReductionController() {
             }
-            InitialReductionController.prototype.onContinueClick = function (e) {
-                PresentationModel.focusedVertex = -1;
-                currentController = new SolutionSearchController();
-                Model.Types.visualisationState = Model.Types.VisualisationState.SOLUTION_SEARCH;
-                PresentationModel.graph.update();
-                PresentationModel.solutionTree.update();
+            ReductionController.prototype.onContinueClick = function (e) {
             };
-            InitialReductionController.prototype.onGraphViewClick = function (e, x, y) {
+            ReductionController.prototype.onGraphViewClick = function (e, x, y) {
             };
-            InitialReductionController.prototype.onWeightInput = function (e, startVertex, endVertex, value) {
+            ReductionController.prototype.onWeightInput = function (e, startVertex, endVertex, value) {
             };
-            InitialReductionController.prototype.onWeightClick = function (e, startVertex, endVertex) {
-                PresentationModel.focusedVertex = PresentationModel.reductionIsIngoing ? endVertex : startVertex;
+            ReductionController.prototype.onWeightClick = function (e, startVertex, endVertex) {
+                var modelIndex = PresentationModel.reductionIsIngoing ? endVertex : startVertex;
+                if ((PresentationModel.reductionIsIngoing ? Model.Types.currentGraph.takenEndVertices : Model.Types.currentGraph.takenStartVertices)[modelIndex])
+                    return;
+                PresentationModel.focusedVertex = modelIndex;
                 PresentationModel.reductionStep = PresentationModel.ReductionStep.INITIAL;
                 PresentationModel.graph.update();
             };
-            InitialReductionController.prototype.onChangeReductionDirection = function (e, isIngoing) {
+            ReductionController.prototype.onChangeReductionDirection = function (e, isIngoing) {
                 PresentationModel.reductionIsIngoing = isIngoing;
+                if ((isIngoing ? Model.Types.currentGraph.takenEndVertices : Model.Types.currentGraph.takenStartVertices)[PresentationModel.focusedVertex]) {
+                    PresentationModel.reductionStep = Infinity;
+                    this.onChangeReductionStep(null, false);
+                    if (PresentationModel.reductionIsIngoing != isIngoing) {
+                        PresentationModel.reductionStep = -1;
+                        this.onChangeReductionStep(null, true);
+                    }
+                    return;
+                }
                 PresentationModel.graph.update();
             };
-            InitialReductionController.prototype.onChangeReductionStep = function (e, backward) {
+            ReductionController.prototype.onChangeReductionStep = function (e, backward) {
                 if (backward)
                     PresentationModel.reductionStep--;
                 else
@@ -1914,39 +1940,65 @@ var Presentation;
                     do {
                         if (++PresentationModel.focusedVertex >= Model.Types.currentGraph.vertices.length) {
                             PresentationModel.focusedVertex = 0;
-                            while (!Model.Types.currentGraph.vertices[PresentationModel.focusedVertex])
-                                ++PresentationModel.focusedVertex;
                             PresentationModel.reductionIsIngoing = !PresentationModel.reductionIsIngoing;
+                            while (this._isVertexToSkip())
+                                ++PresentationModel.focusedVertex;
                             break;
                         }
-                    } while (!Model.Types.currentGraph.vertices[PresentationModel.focusedVertex]);
+                    } while (this._isVertexToSkip());
                 }
                 else if (PresentationModel.reductionStep < PresentationModel.ReductionStep.INITIAL) {
                     PresentationModel.reductionStep = PresentationModel.ReductionStep.REDUCED;
                     do {
                         if (--PresentationModel.focusedVertex < 0) {
                             PresentationModel.focusedVertex = Model.Types.currentGraph.vertices.length - 1;
-                            while (!Model.Types.currentGraph.vertices[PresentationModel.focusedVertex])
-                                --PresentationModel.focusedVertex;
                             PresentationModel.reductionIsIngoing = !PresentationModel.reductionIsIngoing;
+                            while (this._isVertexToSkip())
+                                --PresentationModel.focusedVertex;
                             break;
                         }
-                    } while (!Model.Types.currentGraph.vertices[PresentationModel.focusedVertex]);
+                    } while (this._isVertexToSkip());
                 }
                 PresentationModel.graph.update();
             };
-            InitialReductionController.prototype.onTreeViewClick = function (e, x, y) {
+            ReductionController.prototype._isVertexToSkip = function () {
+                var vertexExists = Model.Types.currentGraph.vertices[PresentationModel.focusedVertex];
+                if (!vertexExists)
+                    return true;
+                return (PresentationModel.reductionIsIngoing ? Model.Types.currentGraph.takenEndVertices : Model.Types.currentGraph.takenStartVertices)[PresentationModel.focusedVertex];
+            };
+            ReductionController.prototype.onTreeViewClick = function (e, x, y) {
+            };
+            return ReductionController;
+        }());
+        var InitialReductionController = /** @class */ (function (_super) {
+            __extends(InitialReductionController, _super);
+            function InitialReductionController() {
+                return _super !== null && _super.apply(this, arguments) || this;
+            }
+            InitialReductionController.prototype.onContinueClick = function (e) {
+                PresentationModel.focusedVertex = -1;
+                currentController = new SolutionSearchController();
+                Model.Types.visualisationState = Model.Types.VisualisationState.SOLUTION_SEARCH;
+                PresentationModel.graph.update();
+                PresentationModel.solutionTree.update();
             };
             return InitialReductionController;
-        }());
+        }(ReductionController));
         var SolutionSearchController = /** @class */ (function () {
             function SolutionSearchController() {
+                this.reductionController = new ReductionController();
             }
             SolutionSearchController.prototype.onChangeReductionDirection = function (e, isIngoing) {
+                if (PresentationModel.graph.isReductionShown)
+                    return this.reductionController.onChangeReductionDirection(e, isIngoing);
             };
             SolutionSearchController.prototype.onChangeReductionStep = function (e, backward) {
+                if (PresentationModel.graph.isReductionShown)
+                    return this.reductionController.onChangeReductionStep(e, backward);
             };
             SolutionSearchController.prototype.onContinueClick = function (e) {
+                PresentationModel.focusedVertex = -1;
                 switch (Model.Types.solutionSearchState) {
                     case Model.Types.SolutionSearchState.NEXT_NODE_SELECTION:
                         if (!Model.Types.solutionTree.lowestBoundUnvisitedCount()) {
@@ -1962,10 +2014,12 @@ var Presentation;
                         ])) {
                             Model.Types.solutionSearchState = Model.Types.SolutionSearchState.NEXT_NODE_SELECTION;
                         }
+                        showReduction();
                         break;
                     case Model.Types.SolutionSearchState.BRANCH_LEFT:
                         Model.Types.currentGraph = Model.Types.solutionTreeNode.rightChild.state.graph;
                         Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_RIGHT;
+                        showReduction();
                         break;
                     case Model.Types.SolutionSearchState.BRANCH_RIGHT:
                     case Model.Types.SolutionSearchState.ONE_SOLUTION_FOUND:
@@ -2003,6 +2057,8 @@ var Presentation;
             SolutionSearchController.prototype.onWeightInput = function (e, startVertex, endVertex, value) {
             };
             SolutionSearchController.prototype.onWeightClick = function (e, startVertex, endVertex) {
+                if (PresentationModel.graph.isReductionShown)
+                    return this.reductionController.onWeightClick(e, startVertex, endVertex);
                 if (Model.Types.solutionSearchState != Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION)
                     return;
                 var arc = Model.Types.currentGraph.getArcFromEnds(startVertex, endVertex);
