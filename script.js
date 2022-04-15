@@ -84,8 +84,8 @@ var Model;
                 return this.weights.weights[idx];
             };
             Graph.prototype.getArcFromEnds = function (start, end) {
-                for (var _i = 0, _a = [start, end]; _i < _a.length; _i++) {
-                    var i = _a[_i];
+                for (var _a = 0, _b = [start, end]; _a < _b.length; _a++) {
+                    var i = _b[_a];
                     if (!this.vertices.hasOwnProperty(i))
                         return null;
                 }
@@ -113,8 +113,8 @@ var Model;
                 return vertex;
             };
             Graph.prototype.setArc = function (start, end, weight) {
-                for (var _i = 0, _a = [start, end]; _i < _a.length; _i++) {
-                    var i = _a[_i];
+                for (var _a = 0, _b = [start, end]; _a < _b.length; _a++) {
+                    var i = _b[_a];
                     if (!this.vertices.hasOwnProperty(i))
                         throw "Vertex with index " + i + " does not exist";
                 }
@@ -255,27 +255,46 @@ var Model;
                 }
                 this.addTakenArc(constraint.arc);
                 var path = this.graph.getContainingPath(constraint.arc.start);
-                var mayBeSolution = path.length >= this.graph.vertexCount;
-                var remainingArc = null;
-                for (var _i = 0, _a = this.graph.arcs; _i < _a.length; _i++) {
-                    var a = _a[_i];
+                var otherVertex = null;
+                for (var _i in this.graph.vertices) {
+                    var i = +_i;
+                    if (isNaN(i))
+                        continue;
+                    if (!this.graph.vertices[i])
+                        continue;
+                    if (path.indexOf(i) < 0) {
+                        otherVertex = i;
+                        break;
+                    }
+                }
+                var otherPath = otherVertex !== null ? this.graph.getContainingPath(otherVertex) : [];
+                var mayBeSolution = path.length + otherPath.length >= this.graph.vertexCount;
+                var remainingArcs = [];
+                if (mayBeSolution && path.length && otherPath.length) {
+                    remainingArcs = [
+                        this.graph.getArcFromEnds(path[path.length - 1], otherPath[0]),
+                        this.graph.getArcFromEnds(otherPath[otherPath.length - 1], path[0]),
+                    ];
+                }
+                for (var _a = 0, _b = this.graph.arcs; _a < _b.length; _a++) {
+                    var a = _b[_a];
                     if (!a || !isFinite(this.graph.getArcWeight(a)))
                         continue;
                     if (a.start == constraint.arc.start || a.end == constraint.arc.end ||
-                        a.start == path[path.length - 1] && a.end == path[0] && !mayBeSolution)
+                        a.start == path[path.length - 1] && a.end == path[0] && remainingArcs.indexOf(a) < 0)
                         this.weights.weights[this.graph.getArcIndex(a)] = Infinity;
-                    if (mayBeSolution && a.start == path[path.length - 1] && a.end == path[0]) {
-                        remainingArc = a;
-                    }
                 }
-                if (remainingArc) {
-                    this.addTakenArc(remainingArc);
+                if (remainingArcs.length && this.graph.getArcIndex(remainingArcs[0]) >= 0 && this.graph.getArcIndex(remainingArcs[1]) >= 0) {
                     this.graph.isSolution = true;
-                    this.increaseBound(this.graph.getArcWeight(remainingArc));
-                    this.weights.weights[this.graph.getArcIndex(remainingArc)] = 0;
-                    var revArc = this.graph.getArcFromEnds(remainingArc.end, remainingArc.start);
-                    if (revArc) {
-                        this.weights.weights[this.graph.getArcIndex(revArc)] = Infinity;
+                    for (var _c = 0, remainingArcs_1 = remainingArcs; _c < remainingArcs_1.length; _c++) {
+                        var arc = remainingArcs_1[_c];
+                        this.addTakenArc(arc);
+                        this.increaseBound(this.graph.getArcWeight(arc));
+                        this.weights.weights[this.graph.getArcIndex(arc)] = 0;
+                        var revArc = this.graph.getArcFromEnds(arc.end, arc.start);
+                        if (revArc) {
+                            this.weights.weights[this.graph.getArcIndex(revArc)] = Infinity; // Should already be
+                        }
                     }
                 }
             };
@@ -423,8 +442,8 @@ var Model;
                     if (column && !graph.takenEndVertices[i])
                         this.affectedColumns.push(i);
                 }
-                for (var _i = 0, _a = graph.arcs; _i < _a.length; _i++) {
-                    var arc = _a[_i];
+                for (var _a = 0, _b = graph.arcs; _a < _b.length; _a++) {
+                    var arc = _b[_a];
                     if (!arc)
                         continue;
                     var withWeight = this.makeArcWithWeigh(arc, graph);
@@ -446,8 +465,8 @@ var Model;
                     for (var i in this.rowsSorted) {
                         var row = this.rowsSorted[i];
                         var newRow = [];
-                        for (var _i = 0, row_1 = row; _i < row_1.length; _i++) {
-                            var arc = row_1[_i];
+                        for (var _a = 0, row_1 = row; _a < row_1.length; _a++) {
+                            var arc = row_1[_a];
                             newRow.push(this.makeArcWithWeigh(arc.arc, graph));
                         }
                         newRow.sort(compareArcs);
@@ -459,8 +478,8 @@ var Model;
                     for (var i in this.columnsSorted) {
                         var column = this.columnsSorted[i];
                         var newColumn = [];
-                        for (var _a = 0, column_1 = column; _a < column_1.length; _a++) {
-                            var arc = column_1[_a];
+                        for (var _b = 0, column_1 = column; _b < column_1.length; _b++) {
+                            var arc = column_1[_b];
                             newColumn.push(this.makeArcWithWeigh(arc.arc, graph));
                         }
                         newColumn.sort(compareArcs);
@@ -472,12 +491,12 @@ var Model;
                 rows = rows || this.affectedRows || [];
                 columns = columns || this.affectedColumns || [];
                 var boundChange = 0;
-                for (var _i = 0, rows_1 = rows; _i < rows_1.length; _i++) {
-                    var i = rows_1[_i];
+                for (var _a = 0, rows_1 = rows; _a < rows_1.length; _a++) {
+                    var i = rows_1[_a];
                     boundChange += this.rowsSorted[i][0].weight;
                 }
-                for (var _a = 0, columns_1 = columns; _a < columns_1.length; _a++) {
-                    var i = columns_1[_a];
+                for (var _b = 0, columns_1 = columns; _b < columns_1.length; _b++) {
+                    var i = columns_1[_b];
                     boundChange += this.columnsSorted[i][0].weight;
                 }
                 return boundChange;
@@ -487,16 +506,16 @@ var Model;
                 columns = columns || this.affectedColumns || [];
                 var rowSet = {};
                 var columnSet = {};
-                for (var _i = 0, rows_2 = rows; _i < rows_2.length; _i++) {
-                    var i = rows_2[_i];
+                for (var _a = 0, rows_2 = rows; _a < rows_2.length; _a++) {
+                    var i = rows_2[_a];
                     rowSet[i] = true;
                 }
-                for (var _a = 0, columns_2 = columns; _a < columns_2.length; _a++) {
-                    var i = columns_2[_a];
+                for (var _b = 0, columns_2 = columns; _b < columns_2.length; _b++) {
+                    var i = columns_2[_b];
                     columnSet[i] = true;
                 }
-                for (var _b = 0, _c = graph.arcs; _b < _c.length; _b++) {
-                    var arc = _c[_b];
+                for (var _c = 0, _d = graph.arcs; _c < _d.length; _c++) {
+                    var arc = _d[_c];
                     if (!arc)
                         continue;
                     var idx = graph.getArcIndex(arc);
@@ -516,17 +535,17 @@ var Model;
                 this.maxBoundChangeZeroArcs = [];
                 var rowSet = {};
                 var columnSet = {};
-                for (var _i = 0, _a = this.affectedRows; _i < _a.length; _i++) {
-                    var i = _a[_i];
+                for (var _a = 0, _b = this.affectedRows; _a < _b.length; _a++) {
+                    var i = _b[_a];
                     rowSet[i] = true;
                 }
-                for (var _b = 0, _c = this.affectedColumns; _b < _c.length; _b++) {
-                    var i = _c[_b];
+                for (var _c = 0, _d = this.affectedColumns; _c < _d.length; _c++) {
+                    var i = _d[_c];
                     columnSet[i] = true;
                 }
                 var maxBoundChange = 0;
-                for (var _d = 0, _e = graph.arcs; _d < _e.length; _d++) {
-                    var arc = _e[_d];
+                for (var _e = 0, _f = graph.arcs; _e < _f.length; _e++) {
+                    var arc = _f[_e];
                     if (!arc)
                         continue;
                     var idx = graph.getArcIndex(arc);
@@ -656,8 +675,8 @@ var Presentation;
                     recalculateBoundMax = true;
                 this.isEditable = Model.Types.originalGraph == model;
                 this.reductionMin = null;
-                for (var _i = 0, _a = model.vertices; _i < _a.length; _i++) {
-                    var v = _a[_i];
+                for (var _a = 0, _b = model.vertices; _a < _b.length; _a++) {
+                    var v = _b[_a];
                     if (!v)
                         continue;
                     var pv = {
@@ -721,8 +740,8 @@ var Presentation;
                 }
                 this.edges = [];
                 this._edgeEndsToIndices = Object.create(null);
-                for (var _b = 0, _c = model.arcs; _b < _c.length; _b++) {
-                    var arc = _c[_b];
+                for (var _c = 0, _d = model.arcs; _c < _d.length; _c++) {
+                    var arc = _d[_c];
                     if (!arc)
                         continue;
                     var modelIndex = void 0;
@@ -828,8 +847,8 @@ var Presentation;
                     };
                     this.edges.push(edge);
                 }
-                for (var _d = 0, _e = this.observers; _d < _e.length; _d++) {
-                    var o = _e[_d];
+                for (var _e = 0, _f = this.observers; _e < _f.length; _e++) {
+                    var o = _f[_e];
                     if (!o)
                         continue;
                     o.update();
@@ -876,8 +895,8 @@ var Presentation;
                 this.maxDepth = this.nodesByLevel.length;
                 this.maxWidth = 0;
                 this._adjustOffsets();
-                for (var _i = 0, _a = this.observers; _i < _a.length; _i++) {
-                    var o = _a[_i];
+                for (var _a = 0, _b = this.observers; _a < _b.length; _a++) {
+                    var o = _b[_a];
                     if (!o)
                         continue;
                     o.update();
@@ -1032,13 +1051,13 @@ var Presentation;
                     }, false);
                 };
                 var this_1 = this;
-                for (var _i = 0, _a = [
+                for (var _a = 0, _b = [
                     ['click', 'click'],
                     ['mousedown', 'down'],
                     ['mouseup', 'up'],
                     ['mousemove', 'move'],
-                ]; _i < _a.length; _i++) {
-                    var _b = _a[_i], domName = _b[0], localName = _b[1];
+                ]; _a < _b.length; _a++) {
+                    var _c = _b[_a], domName = _c[0], localName = _c[1];
                     _loop_1(domName, localName);
                 }
             }
@@ -1266,8 +1285,8 @@ var Presentation;
             GraphView.prototype.render = function () {
                 this.drawing.clear();
                 var pmodel = PresentationModel.graph;
-                for (var _i = 0, _a = pmodel.edges; _i < _a.length; _i++) {
-                    var e = _a[_i];
+                for (var _a = 0, _b = pmodel.edges; _a < _b.length; _a++) {
+                    var e = _b[_a];
                     this.drawingExtended.drawLine(e.start.x, e.start.y, e.end.x, e.end.y, Views.colors[e.style == GraphEdgeStyle.FOCUSED ?
                         ColorIndex.GRAPH_EDGE_FOCUSED : ColorIndex.GRAPH_EDGE_UNFOCUSED]);
                     if (e.forward)
@@ -1275,8 +1294,8 @@ var Presentation;
                     if (e.backward)
                         this.drawArcWeight(e.backward);
                 }
-                for (var _b = 0, _c = pmodel.vertices; _b < _c.length; _b++) {
-                    var v = _c[_b];
+                for (var _c = 0, _d = pmodel.vertices; _c < _d.length; _c++) {
+                    var v = _d[_c];
                     this.drawing.drawCircle(v.x, v.y, 8, Views.colors[v.style == GraphVertexStyle.FOCUSED ?
                         ColorIndex.GRAPH_VERTEX_FOCUSED : ColorIndex.GRAPH_VERTEX_UNFOCUSED]);
                     this.drawing.drawText(v.x, v.y, 0, 0, Views.colors[ColorIndex.GRAPH_VERTEX_FG], Model.Types.originalGraph.vertices[v.modelIndex].name);
@@ -1349,8 +1368,8 @@ var Presentation;
                 this.isContenteditable = pmodel.isEditable;
                 var oldChildren = Array.prototype.slice.call(this.element.children, 0);
                 var existingVertices = {};
-                for (var _i = 0, _a = pmodel.vertices; _i < _a.length; _i++) {
-                    var v = _a[_i];
+                for (var _a = 0, _b = pmodel.vertices; _a < _b.length; _a++) {
+                    var v = _b[_a];
                     var modelIndex = void 0;
                     if (typeof this.vertexIndices[modelIndex = v.modelIndex] != 'number') {
                         this.createVertex(modelIndex, oldChildren);
@@ -1365,10 +1384,10 @@ var Presentation;
                         --i;
                     }
                 }
-                for (var _b = 0, _c = Array.prototype.slice.call(this.element.children, 0); _b < _c.length; _b++) {
-                    var row = _c[_b];
-                    for (var _d = 0, _e = Array.prototype.slice.call(row.children); _d < _e.length; _d++) {
-                        var cell = _e[_d];
+                for (var _c = 0, _d = Array.prototype.slice.call(this.element.children, 0); _c < _d.length; _c++) {
+                    var row = _d[_c];
+                    for (var _e = 0, _f = Array.prototype.slice.call(row.children); _e < _f.length; _e++) {
+                        var cell = _f[_e];
                         if (!cell.referencedEdge) {
                             if (typeof cell.referencedVertex == 'number') {
                                 if (pmodel.isReductionShown && PresentationModel.reductionStep == PresentationModel.ReductionStep.MIN_FOUND && cell.referencedVertex == PresentationModel.focusedVertex && cell.referencedVertexIsIngoing == PresentationModel.reductionIsIngoing)
@@ -1428,8 +1447,8 @@ var Presentation;
                 this._dirty = false;
             };
             TableView.prototype.removeVertex = function (modelIndex, parentElements) {
-                for (var _i = 0, parentElements_1 = parentElements; _i < parentElements_1.length; _i++) {
-                    var parent_1 = parentElements_1[_i];
+                for (var _a = 0, parentElements_1 = parentElements; _a < parentElements_1.length; _a++) {
+                    var parent_1 = parentElements_1[_a];
                     var child = this.getVertexChild(parent_1, modelIndex);
                     if (!child)
                         continue;
@@ -1462,8 +1481,8 @@ var Presentation;
                 }
                 row.appendChild(this.createMinCell(modelIndex, false));
                 this.insertVertexChild(this.element, modelIndex, row);
-                for (var _i = 0, oldChildren_1 = oldChildren; _i < oldChildren_1.length; _i++) {
-                    var child = oldChildren_1[_i];
+                for (var _a = 0, oldChildren_1 = oldChildren; _a < oldChildren_1.length; _a++) {
+                    var child = oldChildren_1[_a];
                     var cell = void 0;
                     if (child.previousSibling && child.nextSibling)
                         cell = this.createEditableCell(child.children[1].referencedEdge[0], modelIndex);
@@ -1745,10 +1764,10 @@ var Presentation;
                 if (this.drawing.width < width || this.drawing.height < height)
                     this.drawing.resize(Math.max(width, this.drawing.width), Math.max(height, this.drawing.height));
                 this.drawing.clear();
-                for (var _i = 0, _c = pmodel.edges; _i < _c.length; _i++) {
-                    var edge = _c[_i];
-                    var _d = this.getNodeCenter(edge.parent), sx = _d[0], sy = _d[1];
-                    var _e = this.getNodeCenter(edge.child), ex = _e[0], ey = _e[1];
+                for (var _c = 0, _d = pmodel.edges; _c < _d.length; _c++) {
+                    var edge = _d[_c];
+                    var _e = this.getNodeCenter(edge.parent), sx = _e[0], sy = _e[1];
+                    var _f = this.getNodeCenter(edge.child), ex = _f[0], ey = _f[1];
                     var tx = .2 * sx + .8 * ex;
                     var ty = .2 * sy + .8 * ey - 20;
                     var color = Views.colors[(_a = {},
@@ -1758,8 +1777,8 @@ var Presentation;
                     this.drawingExtended.drawArrow(sx, sy + 30, ex, ey - 30, color);
                     this.drawing.drawText(tx, ty, 0, 1, color, edge.isTaken ? '\u2208' : '\u2209');
                 }
-                for (var _f = 0, _g = pmodel.nodes; _f < _g.length; _f++) {
-                    var node = _g[_f];
+                for (var _g = 0, _h = pmodel.nodes; _g < _h.length; _g++) {
+                    var node = _h[_g];
                     var fg = Views.colors[(_b = {},
                         _b[PresentationModel.SolutionTreeNodeStyle.UNFOCUSED] = ColorIndex.SOLUTION_TREE_UNFOCUSED,
                         _b[PresentationModel.SolutionTreeNodeStyle.FOCUSED] = ColorIndex.SOLUTION_TREE_FOCUSED,
@@ -1768,7 +1787,7 @@ var Presentation;
                     var bg = Views.colors[node.isSolution
                         ? ColorIndex.SOLUTION_TREE_SOLUTION_BG
                         : ColorIndex.SOLUTION_TREE_NONSOLUTION_BG];
-                    var _h = this.getNodeCenter(node), x = _h[0], y = _h[1];
+                    var _j = this.getNodeCenter(node), x = _j[0], y = _j[1];
                     this.drawing.drawCircle(x, y, 30, bg, fg, 'b = ' + numberToString(node.bound));
                     if (node.separatingArc)
                         this.drawingExtended.drawDiamond(x, y + 30, 30, 15, bg, fg, Model.Types.originalGraph.vertices[node.separatingArc[0]].name + '; ' + Model.Types.originalGraph.vertices[node.separatingArc[1]].name);
@@ -1936,24 +1955,13 @@ var Presentation;
                         }
                         Model.Types.solutionTree.popUnvisited().focus();
                         Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION;
-                        break;
+                        if (!Model.Types.currentGraph.isSolution)
+                            break; // else fallthrough
                     case Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION:
-                        Model.Types.solutionTreeNode.separatingArc = Model.Types.currentGraph.arcs[Model.Types.solutionTreeNode.state.weightReduction.maxBoundChangeZeroArcs[0] // TODO give choice
-                        ];
-                        if (Model.Types.currentGraph.isSolution) {
-                            Model.Types.solutionTree.maxBound = Model.Types.solutionTreeNode.state.getBound();
-                            Model.Types.solutionSearchState = Model.Types.SolutionSearchState.ONE_SOLUTION_FOUND;
-                            break;
-                        }
-                        if (!Model.Types.solutionTreeNode.separatingArc) {
+                        if (!this.continueBranchArcSelection(Model.Types.currentGraph.arcs[Model.Types.solutionTreeNode.state.weightReduction.maxBoundChangeZeroArcs[0] // TODO give choice
+                        ])) {
                             Model.Types.solutionSearchState = Model.Types.SolutionSearchState.NEXT_NODE_SELECTION;
-                            break;
                         }
-                        Model.Types.solutionTreeNode.branch();
-                        Model.Types.solutionTree.pushUnvisited(Model.Types.solutionTreeNode.leftChild);
-                        Model.Types.solutionTree.pushUnvisited(Model.Types.solutionTreeNode.rightChild);
-                        Model.Types.currentGraph = Model.Types.solutionTreeNode.leftChild.state.graph;
-                        Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_LEFT;
                         break;
                     case Model.Types.SolutionSearchState.BRANCH_LEFT:
                         Model.Types.currentGraph = Model.Types.solutionTreeNode.rightChild.state.graph;
@@ -1971,6 +1979,25 @@ var Presentation;
                 PresentationModel.graph.update();
                 PresentationModel.solutionTree.update();
             };
+            SolutionSearchController.prototype.continueBranchArcSelection = function (arc) {
+                if (Model.Types.currentGraph.isSolution) {
+                    Model.Types.solutionTree.maxBound = Model.Types.solutionTreeNode.state.getBound();
+                    Model.Types.solutionSearchState = Model.Types.SolutionSearchState.ONE_SOLUTION_FOUND;
+                    return true;
+                }
+                else {
+                    var modelIndex = Model.Types.currentGraph.getArcIndex(arc);
+                    if (Model.Types.solutionTreeNode.state.weightReduction.maxBoundChangeZeroArcs.indexOf(modelIndex) < 0)
+                        return false;
+                    Model.Types.solutionTreeNode.separatingArc = arc;
+                    Model.Types.solutionTreeNode.branch();
+                    Model.Types.solutionTree.pushUnvisited(Model.Types.solutionTreeNode.leftChild);
+                    Model.Types.solutionTree.pushUnvisited(Model.Types.solutionTreeNode.rightChild);
+                    Model.Types.currentGraph = Model.Types.solutionTreeNode.leftChild.state.graph;
+                    Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_LEFT;
+                }
+                return true;
+            };
             SolutionSearchController.prototype.onGraphViewClick = function (e, x, y) {
             };
             SolutionSearchController.prototype.onWeightInput = function (e, startVertex, endVertex, value) {
@@ -1979,22 +2006,8 @@ var Presentation;
                 if (Model.Types.solutionSearchState != Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION)
                     return;
                 var arc = Model.Types.currentGraph.getArcFromEnds(startVertex, endVertex);
-                var modelIndex = Model.Types.currentGraph.getArcIndex(arc);
-                if (Model.Types.solutionTreeNode.state.weightReduction.maxBoundChangeZeroArcs.indexOf(modelIndex) < 0)
+                if (!this.continueBranchArcSelection(arc))
                     return;
-                Model.Types.solutionTreeNode.separatingArc = arc;
-                if (Model.Types.currentGraph.isSolution) {
-                    // Should be unreachable
-                    Model.Types.solutionTree.maxBound = Model.Types.solutionTreeNode.state.getBound();
-                    Model.Types.solutionSearchState = Model.Types.SolutionSearchState.ONE_SOLUTION_FOUND;
-                }
-                else {
-                    Model.Types.solutionTreeNode.branch();
-                    Model.Types.solutionTree.pushUnvisited(Model.Types.solutionTreeNode.leftChild);
-                    Model.Types.solutionTree.pushUnvisited(Model.Types.solutionTreeNode.rightChild);
-                    Model.Types.currentGraph = Model.Types.solutionTreeNode.leftChild.state.graph;
-                    Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_LEFT;
-                }
                 PresentationModel.graph.update();
                 PresentationModel.solutionTree.update();
             };
@@ -2018,6 +2031,8 @@ var Presentation;
                         continue;
                     Model.Types.solutionTree.popUnvisited(nodeIndex).focus();
                     Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION;
+                    if (Model.Types.currentGraph.isSolution)
+                        this.continueBranchArcSelection(null);
                     PresentationModel.graph.update();
                     PresentationModel.solutionTree.update();
                     break;
