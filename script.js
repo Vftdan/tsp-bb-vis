@@ -353,7 +353,7 @@ var Model;
                 if (this.unvisited.length == 0)
                     return 0;
                 var bound = this.unvisited[0].state.getBound();
-                if (bound > this.maxBound)
+                if (bound > this.maxBound || bound == Infinity)
                     return 0;
                 for (var i = 1; i < this.unvisited.length; ++i)
                     if (this.unvisited[i].state.getBound() > bound)
@@ -493,11 +493,11 @@ var Model;
                 var boundChange = 0;
                 for (var _a = 0, rows_1 = rows; _a < rows_1.length; _a++) {
                     var i = rows_1[_a];
-                    boundChange += this.rowsSorted[i][0].weight;
+                    boundChange += (this.rowsSorted[i][0] || Algo.DUMMY_ARC_WITH_WEIGHT).weight;
                 }
                 for (var _b = 0, columns_1 = columns; _b < columns_1.length; _b++) {
                     var i = columns_1[_b];
-                    boundChange += this.columnsSorted[i][0].weight;
+                    boundChange += (this.columnsSorted[i][0] || Algo.DUMMY_ARC_WITH_WEIGHT).weight;
                 }
                 return boundChange;
             };
@@ -522,10 +522,10 @@ var Model;
                     if (!isFinite(weights.weights[idx])) {
                         continue;
                     }
-                    if (rowSet[arc.start]) {
+                    if (rowSet[arc.start] && this.rowsSorted[arc.start] && this.rowsSorted[arc.start].length) {
                         weights.weights[idx] -= this.rowsSorted[arc.start][0].weight;
                     }
-                    if (columnSet[arc.end])
+                    if (columnSet[arc.end] && this.columnsSorted[arc.end] && this.columnsSorted[arc.end].length)
                         weights.weights[idx] -= this.columnsSorted[arc.end][0].weight;
                 }
             };
@@ -748,6 +748,8 @@ var Presentation;
                 }
                 this.edges = [];
                 this._edgeEndsToIndices = Object.create(null);
+                if (this.isReductionShown)
+                    this.reductionMin = Infinity;
                 for (var _c = 0, _d = model.arcs; _c < _d.length; _c++) {
                     var arc = _d[_c];
                     if (!arc)
@@ -796,12 +798,12 @@ var Presentation;
                     if (PresentationModel.focusedVertex == reductionVertexNumber && this.isReductionShown) {
                         var weightReduction = node.state.weightReduction;
                         if (PresentationModel.reductionIsIngoing && weightReduction.columnsSorted || !PresentationModel.reductionIsIngoing && weightReduction.rowsSorted) {
-                            var sorted = PresentationModel.reductionIsIngoing ? weightReduction.columnsSorted[arc.end] : weightReduction.rowsSorted[arc.start];
+                            var sorted = (PresentationModel.reductionIsIngoing ? weightReduction.columnsSorted[arc.end] : weightReduction.rowsSorted[arc.start]) || [];
                             switch (PresentationModel.reductionStep) {
                                 case Presentation.PresentationModel.ReductionStep.INITIAL:
                                     break;
                                 case Presentation.PresentationModel.ReductionStep.MIN_FOUND: {
-                                    var min = sorted[0].weight;
+                                    var min = (sorted[0] || Model.Algo.DUMMY_ARC_WITH_WEIGHT).weight;
                                     this.reductionMin = min;
                                     if (min == weight) {
                                         pa.isMin = true;
@@ -812,7 +814,7 @@ var Presentation;
                                     break;
                                 }
                                 case Presentation.PresentationModel.ReductionStep.REDUCED: {
-                                    if (sorted[0].weight == sorted[1].weight)
+                                    if (sorted.length < 2 || sorted[0].weight == sorted[1].weight)
                                         break;
                                     var min = sorted[1].weight - sorted[0].weight;
                                     this.reductionMin = min;
