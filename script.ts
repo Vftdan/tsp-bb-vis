@@ -2168,25 +2168,14 @@ module Presentation {
                         }
                         Model.Types.solutionTree.popUnvisited().focus();
                         Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION;
-                        break;
+                        if (!Model.Types.currentGraph.isSolution)
+                            break;  // else fallthrough
                     case Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION:
-                        Model.Types.solutionTreeNode.separatingArc = Model.Types.currentGraph.arcs[
+                        if (!this.continueBranchArcSelection(Model.Types.currentGraph.arcs[
                             Model.Types.solutionTreeNode.state.weightReduction.maxBoundChangeZeroArcs[0]  // TODO give choice
-                        ];
-                        if (Model.Types.currentGraph.isSolution) {
-                            Model.Types.solutionTree.maxBound = Model.Types.solutionTreeNode.state.getBound();
-                            Model.Types.solutionSearchState = Model.Types.SolutionSearchState.ONE_SOLUTION_FOUND;
-                            break;
-                        }
-                        if (!Model.Types.solutionTreeNode.separatingArc) {
+                        ])) {
                             Model.Types.solutionSearchState = Model.Types.SolutionSearchState.NEXT_NODE_SELECTION;
-                            break;
                         }
-                        Model.Types.solutionTreeNode.branch();
-                        Model.Types.solutionTree.pushUnvisited(<any> Model.Types.solutionTreeNode.leftChild);
-                        Model.Types.solutionTree.pushUnvisited(<any> Model.Types.solutionTreeNode.rightChild);
-                        Model.Types.currentGraph = Model.Types.solutionTreeNode.leftChild.state.graph;
-                        Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_LEFT;
                         break;
                     case Model.Types.SolutionSearchState.BRANCH_LEFT:
                         Model.Types.currentGraph = Model.Types.solutionTreeNode.rightChild.state.graph;
@@ -2205,6 +2194,25 @@ module Presentation {
                 PresentationModel.solutionTree.update();
             }
 
+            private continueBranchArcSelection(arc: Readonly<Model.Types.GraphArc>): boolean {
+                if (Model.Types.currentGraph.isSolution) {
+                    Model.Types.solutionTree.maxBound = Model.Types.solutionTreeNode.state.getBound();
+                    Model.Types.solutionSearchState = Model.Types.SolutionSearchState.ONE_SOLUTION_FOUND;
+                    return true;
+                } else {
+                    const modelIndex = Model.Types.currentGraph.getArcIndex(arc);
+                    if (Model.Types.solutionTreeNode.state.weightReduction.maxBoundChangeZeroArcs.indexOf(modelIndex) < 0)
+                        return false;
+                    Model.Types.solutionTreeNode.separatingArc = arc;
+                    Model.Types.solutionTreeNode.branch();
+                    Model.Types.solutionTree.pushUnvisited(<any>Model.Types.solutionTreeNode.leftChild);
+                    Model.Types.solutionTree.pushUnvisited(<any>Model.Types.solutionTreeNode.rightChild);
+                    Model.Types.currentGraph = Model.Types.solutionTreeNode.leftChild.state.graph;
+                    Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_LEFT;
+                }
+                return true;
+            }
+
             onGraphViewClick(e: MouseEvent | null, x: number, y: number): void {
             }
 
@@ -2215,21 +2223,8 @@ module Presentation {
                 if (Model.Types.solutionSearchState != Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION)
                     return;
                 const arc = Model.Types.currentGraph.getArcFromEnds(startVertex, endVertex);
-                const modelIndex = Model.Types.currentGraph.getArcIndex(arc);
-                if (Model.Types.solutionTreeNode.state.weightReduction.maxBoundChangeZeroArcs.indexOf(modelIndex) < 0)
+                if (!this.continueBranchArcSelection(arc))
                     return;
-                Model.Types.solutionTreeNode.separatingArc = arc;
-                if (Model.Types.currentGraph.isSolution) {
-                    // Should be unreachable
-                    Model.Types.solutionTree.maxBound = Model.Types.solutionTreeNode.state.getBound();
-                    Model.Types.solutionSearchState = Model.Types.SolutionSearchState.ONE_SOLUTION_FOUND;
-                } else {
-                    Model.Types.solutionTreeNode.branch();
-                    Model.Types.solutionTree.pushUnvisited(<any>Model.Types.solutionTreeNode.leftChild);
-                    Model.Types.solutionTree.pushUnvisited(<any>Model.Types.solutionTreeNode.rightChild);
-                    Model.Types.currentGraph = Model.Types.solutionTreeNode.leftChild.state.graph;
-                    Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_LEFT;
-                }
                 PresentationModel.graph.update();
                 PresentationModel.solutionTree.update();
             }
@@ -2254,6 +2249,8 @@ module Presentation {
                         continue;
                     Model.Types.solutionTree.popUnvisited(nodeIndex).focus();
                     Model.Types.solutionSearchState = Model.Types.SolutionSearchState.BRANCH_ARC_SELECTION;
+                    if (Model.Types.currentGraph.isSolution)
+                        this.continueBranchArcSelection(null);
                     PresentationModel.graph.update();
                     PresentationModel.solutionTree.update();
                     break;
