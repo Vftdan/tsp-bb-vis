@@ -295,26 +295,44 @@ module Model {
                 }
                 this.addTakenArc(constraint.arc);
                 const path = this.graph.getContainingPath(constraint.arc.start);
-                const mayBeSolution = path.length >= this.graph.vertexCount;
-                let remainingArc = null;
+                let otherVertex: number | null = null;
+                for (let _i in this.graph.vertices) {
+                    const i = +_i;
+                    if (isNaN(i))
+                        continue;
+                    if (!this.graph.vertices[i])
+                        continue;
+                    if (path.indexOf(i) < 0) {
+                        otherVertex = i;
+                        break;
+                    }
+                }
+                const otherPath = otherVertex !== null ? this.graph.getContainingPath(otherVertex) : [];
+                const mayBeSolution = path.length + otherPath.length >= this.graph.vertexCount;
+                let remainingArcs: (GraphArc | null)[] = [];
+                if (mayBeSolution && path.length && otherPath.length) {
+                    remainingArcs = [
+                        this.graph.getArcFromEnds(path[path.length - 1], otherPath[0]),
+                        this.graph.getArcFromEnds(otherPath[otherPath.length - 1], path[0]),
+                    ];
+                }
                 for (const a of this.graph.arcs) {
                     if (!a || !isFinite(this.graph.getArcWeight(a)))
                         continue;
                     if (a.start == constraint.arc.start || a.end == constraint.arc.end ||
-                        a.start == path[path.length - 1] && a.end == path[0] && !mayBeSolution)
+                        a.start == path[path.length - 1] && a.end == path[0] && remainingArcs.indexOf(a) < 0)
                         this.weights.weights[this.graph.getArcIndex(a)] = Infinity;
-                    if (mayBeSolution && a.start == path[path.length - 1] && a.end == path[0]) {
-                        remainingArc = a;
-                    }
                 }
-                if (remainingArc) {
-                    this.addTakenArc(remainingArc);
+                if (remainingArcs.length && this.graph.getArcIndex(remainingArcs[0]) >= 0 && this.graph.getArcIndex(remainingArcs[1]) >= 0) {
                     this.graph.isSolution = true;
-                    this.increaseBound(this.graph.getArcWeight(remainingArc));
-                    this.weights.weights[this.graph.getArcIndex(remainingArc)] = 0;
-                    const revArc = this.graph.getArcFromEnds(remainingArc.end, remainingArc.start);
-                    if (revArc) {
-                        this.weights.weights[this.graph.getArcIndex(revArc)] = Infinity;
+                    for (const arc of remainingArcs) {
+                        this.addTakenArc(arc);
+                        this.increaseBound(this.graph.getArcWeight(arc));
+                        this.weights.weights[this.graph.getArcIndex(arc)] = 0;
+                        const revArc = this.graph.getArcFromEnds(arc.end, arc.start);
+                        if (revArc) {
+                            this.weights.weights[this.graph.getArcIndex(revArc)] = Infinity;  // Should already be
+                        }
                     }
                 }
             }
